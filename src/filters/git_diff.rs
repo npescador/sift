@@ -80,7 +80,7 @@ fn flush_file(out: &mut String, file: &str, additions: i32, deletions: i32, _ver
 fn extract_diff_filename(line: &str) -> &str {
     // "diff --git a/src/main.rs b/src/main.rs" → "src/main.rs"
     line.split(' ')
-        .last()
+        .next_back()
         .and_then(|s| s.strip_prefix("b/"))
         .unwrap_or(line)
 }
