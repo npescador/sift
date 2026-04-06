@@ -4,6 +4,7 @@ mod config;
 mod error;
 mod executor;
 mod filters;
+mod init;
 mod tracking;
 
 use anyhow::Result;
@@ -35,6 +36,22 @@ fn run() -> Result<i32> {
     };
 
     match cli.command {
+        cli::SiftCommand::Init {
+            shell,
+            claude,
+            copilot,
+            show,
+            uninstall,
+        } => {
+            init::run(init::InitOptions {
+                shell,
+                claude,
+                copilot,
+                show,
+                uninstall,
+            })?;
+            Ok(0)
+        }
         cli::SiftCommand::Stats { all: _ } => {
             let stats = tracking::StatsFile::load();
             let summary = stats.summary();

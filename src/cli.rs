@@ -30,6 +30,30 @@ pub enum SiftCommand {
         all: bool,
     },
 
+    /// Install or manage sift shell hooks and AI agent instructions
+    Init {
+        /// Install shell functions into ~/.zshrc / ~/.bashrc so commands
+        /// like git, xcodebuild, xcrun, and swiftlint are auto-filtered
+        #[arg(long)]
+        shell: bool,
+
+        /// Create/update CLAUDE.md with sift usage instructions
+        #[arg(long)]
+        claude: bool,
+
+        /// Create/update .github/copilot-instructions.md with sift instructions
+        #[arg(long)]
+        copilot: bool,
+
+        /// Show current installation status
+        #[arg(long)]
+        show: bool,
+
+        /// Remove all sift hooks and instruction files installed by sift init
+        #[arg(long)]
+        uninstall: bool,
+    },
+
     /// Run a command with smart output filtering
     #[command(external_subcommand)]
     Proxy(Vec<String>),
