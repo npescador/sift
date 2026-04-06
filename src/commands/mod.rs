@@ -33,7 +33,7 @@ impl CommandFamily {
     }
 }
 
-
+/// Detect the command family from the argument list.
 ///
 /// Returns `CommandFamily::Unknown` for unrecognized commands.
 /// Safe passthrough is always the fallback — Sift never blocks a command.
