@@ -16,8 +16,9 @@ Thank you for your interest in contributing to Sift!
 ### Getting Started
 
 ```bash
-git clone https://github.com/ipescador/sift
+git clone https://github.com/npescador/sift
 cd sift
+git checkout develop    # develop is the default integration branch
 cargo build
 cargo test
 ```
@@ -47,12 +48,35 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed breakdown of the module st
 
 1. **Check existing issues** before opening a new one — the feature or bug may already be tracked
 2. **Open an issue first** for significant changes — discuss the approach before investing implementation time
-3. **Fork the repository** and create a branch from `main`
+3. **Fork the repository** and create a branch from `develop`
 4. **Write tests** for any new behavior (filters, parsing, etc.)
 5. **Run the full check suite** before submitting (see below)
 6. **Submit a pull request** with a clear description of what changed and why
 
 ---
+
+## Branch Strategy
+
+Sift uses a simplified Git Flow model:
+
+```
+main        → production-ready code, official releases only
+  └── develop   → integration branch (default) ← work happens here
+        ├── feature/*    → new functionality
+        ├── fix/*        → bug fixes
+        ├── docs/*       → documentation only
+        ├── refactor/*   → code restructuring
+        ├── test/*       → test additions or fixes
+        └── chore/*      → tooling, CI, dependencies
+
+hotfix/*    → branches from main, for production emergencies
+release/*   → branches from develop, for release preparation
+```
+
+**Normal workflow:**
+1. Create `feature/my-feature` from `develop`
+2. Open PR targeting `develop`
+3. Once `develop` is stable, open PR from `develop` → `main` for a release
 
 ## Branch Naming
 
@@ -63,6 +87,8 @@ docs/short-description         # Documentation only
 refactor/short-description     # Code restructuring without behavior change
 test/short-description         # Test additions or fixes
 chore/short-description        # Tooling, CI, dependency updates
+hotfix/short-description       # Emergency fix from main
+release/v0.x.0                 # Release preparation from develop
 ```
 
 ---
