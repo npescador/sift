@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Stub: wired into main.rs in Phase 4
-
 pub mod git;
 pub mod grep;
 pub mod read;

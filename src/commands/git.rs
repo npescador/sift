@@ -1,5 +1,3 @@
-#![allow(dead_code)] // Stub: wired into commands/mod.rs in Phase 4
-
 /// Git subcommands that Sift has specialized filters for.
 ///
 /// Any git subcommand not listed here falls back to passthrough.
