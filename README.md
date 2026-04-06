@@ -2,7 +2,7 @@
 
 > Smart output reduction for AI-assisted developer workflows.
 
-[![CI](https://github.com/ipescador/sift/actions/workflows/ci.yml/badge.svg)](https://github.com/ipescador/sift/actions/workflows/ci.yml)
+[![CI](https://github.com/npescador/sift/actions/workflows/ci.yml/badge.svg)](https://github.com/npescador/sift/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-stable-orange.svg)](https://www.rust-lang.org)
 
@@ -24,11 +24,20 @@ AI coding agents (Copilot CLI, Codex CLI, Claude Code) consume terminal output a
 ## The Solution
 
 ```bash
-# Instead of this (potentially thousands of lines):
-xcodebuild test -scheme MyApp
+# Without Sift — xcodebuild test (thousands of lines):
+Test Suite 'All tests' started at 2026-04-06 10:00:00.000
+Test Case '-[LoginTests testValidUser]' started
+...
+** TEST FAILED **
 
-# Use this (compact, agent-readable summary):
-sift xcodebuild test -scheme MyApp
+# With Sift — compact summary:
+TEST FAILED  47 tests — 45 passed, 2 failed
+
+  ✗ -[PaymentTests testCheckout]
+    XCTAssertEqual failed: ("200") is not equal to ("404")
+
+  ✗ -[AuthTests testTokenRefresh]
+    XCTAssertNotNil failed
 ```
 
 Sift intercepts the command, runs it natively, captures all output, and returns a filtered summary. **The original exit code is always preserved.**
@@ -40,7 +49,7 @@ Sift intercepts the command, runs it natively, captures all output, and returns 
 ### Install from source
 
 ```bash
-git clone https://github.com/ipescador/sift
+git clone https://github.com/npescador/sift
 cd sift
 cargo build --release
 cp target/release/sift /usr/local/bin/sift
@@ -53,6 +62,7 @@ sift git status
 sift git diff HEAD~1
 sift rg "fn main" src/
 sift xcodebuild test -scheme MyApp -destination "platform=iOS Simulator,name=iPhone 16"
+sift stats
 ```
 
 ---
@@ -61,14 +71,14 @@ sift xcodebuild test -scheme MyApp -destination "platform=iOS Simulator,name=iPh
 
 | Command Family      | Status   | Description                                    |
 |---------------------|----------|------------------------------------------------|
-| `git status`        | ✅ MVP   | Grouped file state summary with counts         |
-| `git diff`          | ✅ MVP   | Per-file stats, useful hunk headers only       |
-| `grep` / `rg`       | ✅ MVP   | Results grouped by file, deduplication         |
-| `cat` / `read`      | ✅ MVP   | Safe truncation, configurable line ranges      |
-| `xcodebuild build`  | ✅ MVP   | Grouped unique errors, warning count summary   |
-| `xcodebuild test`   | ✅ MVP   | Pass/fail counts, failed test details          |
+| `git status`        | ✅ v0.1  | Grouped file state summary with counts         |
+| `git diff`          | ✅ v0.1  | Per-file stats, useful hunk headers only       |
+| `grep` / `rg`       | ✅ v0.1  | Results grouped by file, capped per file       |
+| `cat` / file reads  | ✅ v0.1  | Safe truncation, binary detection              |
+| `xcodebuild build`  | ✅ v0.1  | Grouped unique errors, warning count summary   |
+| `xcodebuild test`   | ✅ v0.1  | Pass/fail counts, failed test details          |
 
-Unknown commands pass through **unmodified**.
+Unknown commands pass through **unmodified** with the original exit code.
 
 ---
 
@@ -79,36 +89,64 @@ sift git diff              # Compact (default) — maximum signal reduction
 sift -v git diff           # Verbose — more context retained
 sift -vv git diff          # Very verbose — near-complete output
 sift -vvv git diff         # Maximum — minimal filtering
-sift --raw git diff        # Raw passthrough — zero filtering
+sift --raw git diff        # Raw passthrough — zero filtering, identical to direct invocation
 ```
+
+Default verbosity can be set in the config file.
 
 ---
 
 ## Configuration
 
-Sift reads `~/.config/sift/config.toml` (created on first run if absent):
+Sift reads `~/.config/sift/config.toml`. All fields are optional — missing file uses built-in defaults.
 
 ```toml
 [defaults]
-verbosity = "compact"
-max_lines = 100
+verbosity = "compact"   # compact | verbose | very_verbose | maximum | raw
+max_lines = 100         # default truncation limit for cat/read filter
 
 [tracking]
-enabled = true
-
-[commands.xcodebuild]
-max_errors = 20
-max_warnings = 10
+enabled = true          # set false to disable stats recording
 ```
+
+**Config resolution:**
+1. `$XDG_CONFIG_HOME/sift/config.toml` if `XDG_CONFIG_HOME` is set
+2. `~/.config/sift/config.toml` otherwise
+
+**Verbosity priority:** `--raw` > `-v` flags > config default
 
 ---
 
 ## Tracking & Savings
 
 ```bash
-sift stats                 # Show token/line savings for current session
-sift stats --all           # Show historical totals
+sift stats               # Show accumulated token savings
 ```
+
+```
+Sift Statistics
+─────────────────────────────────────────
+  Invocations:    47
+  Original bytes: 2.1 MB
+  Filtered bytes: 98.3 KB
+  Bytes saved:    2.0 MB  (95.4% avg)
+─────────────────────────────────────────
+  By command:
+    git          23 runs
+    xcodebuild   15 runs
+    grep          9 runs
+```
+
+Stats are persisted to `~/.local/share/sift/stats.toml` (`$XDG_DATA_HOME/sift/stats.toml` if set).
+
+---
+
+## AI Agent Integration
+
+See **[AGENTS.md](AGENTS.md)** for setup guides for:
+- GitHub Copilot CLI
+- OpenAI Codex CLI
+- Anthropic Claude Code
 
 ---
 
@@ -120,16 +158,17 @@ sift stats --all           # Show historical totals
 
 ## Status
 
-🚧 **Early Development** — MVP in active development. See [ROADMAP.md](ROADMAP.md) for current milestones.
+**v0.1.0** — MVP complete. All core command filters implemented. See [ROADMAP.md](ROADMAP.md) for planned features.
 
 ---
 
 ## Documentation
 
-- [Architecture](ARCHITECTURE.md) — Design overview and module breakdown
-- [Roadmap](ROADMAP.md) — Planned features and milestones
-- [Contributing](CONTRIBUTING.md) — How to contribute
-- [Changelog](CHANGELOG.md) — Version history
+- [AGENTS.md](AGENTS.md) — AI agent integration guide
+- [ARCHITECTURE.md](ARCHITECTURE.md) — Design overview and module breakdown
+- [ROADMAP.md](ROADMAP.md) — Planned features and milestones
+- [CONTRIBUTING.md](CONTRIBUTING.md) — How to contribute
+- [CHANGELOG.md](CHANGELOG.md) — Version history
 
 ---
 
