@@ -51,3 +51,63 @@ pub fn detect(args: &[String]) -> CommandFamily {
         _ => CommandFamily::Unknown,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn detect_git_returns_git_family() {
+        assert!(matches!(detect(&args(&["git", "status"])), CommandFamily::Git(_)));
+    }
+
+    #[test]
+    fn detect_rg_returns_grep_family() {
+        assert_eq!(detect(&args(&["rg", "pattern"])), CommandFamily::Grep);
+    }
+
+    #[test]
+    fn detect_grep_returns_grep_family() {
+        assert_eq!(detect(&args(&["grep", "pattern"])), CommandFamily::Grep);
+    }
+
+    #[test]
+    fn detect_cat_returns_read_family() {
+        assert_eq!(detect(&args(&["cat", "file.txt"])), CommandFamily::Read);
+    }
+
+    #[test]
+    fn detect_xcodebuild_returns_xcodebuild_family() {
+        assert!(matches!(
+            detect(&args(&["xcodebuild", "build"])),
+            CommandFamily::Xcodebuild(_)
+        ));
+    }
+
+    #[test]
+    fn detect_unknown_program_returns_unknown() {
+        assert_eq!(detect(&args(&["cargo"])), CommandFamily::Unknown);
+    }
+
+    #[test]
+    fn detect_empty_args_returns_unknown() {
+        let empty: Vec<String> = vec![];
+        assert_eq!(detect(&empty), CommandFamily::Unknown);
+    }
+
+    #[test]
+    fn name_returns_correct_string_for_each_variant() {
+        assert_eq!(CommandFamily::Git(git::GitSubcommand::Status).name(), "git");
+        assert_eq!(CommandFamily::Grep.name(), "grep");
+        assert_eq!(CommandFamily::Read.name(), "read");
+        assert_eq!(
+            CommandFamily::Xcodebuild(xcodebuild::XcodebuildSubcommand::Build).name(),
+            "xcodebuild"
+        );
+        assert_eq!(CommandFamily::Unknown.name(), "unknown");
+    }
+}
