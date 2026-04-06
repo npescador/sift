@@ -59,7 +59,8 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         let show = matches.len().min(max_per_file);
         let remaining = matches.len().saturating_sub(max_per_file);
 
-        out.push_str(&format!("\x1b[1m{file}\x1b[0m ({} match{})\n",
+        out.push_str(&format!(
+            "\x1b[1m{file}\x1b[0m ({} match{})\n",
             matches.len(),
             if matches.len() == 1 { "" } else { "es" }
         ));
@@ -74,7 +75,8 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
 
         if remaining > 0 && !truncated {
-            out.push_str(&format!("  … {remaining} more match{}\n",
+            out.push_str(&format!(
+                "  … {remaining} more match{}\n",
                 if remaining == 1 { "" } else { "es" }
             ));
         }
@@ -175,4 +177,3 @@ src/executor.rs:31:pub fn execute(program: &str, args: &[String]) -> Result<Exec
         assert_eq!(content, "let x = 1;");
     }
 }
-

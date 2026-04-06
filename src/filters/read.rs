@@ -59,10 +59,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
 /// Heuristic binary detection: look for null bytes in the first 8KB.
 fn is_likely_binary(content: &str) -> bool {
-    content
-        .bytes()
-        .take(8192)
-        .any(|b| b == 0)
+    content.bytes().take(8192).any(|b| b == 0)
 }
 
 #[cfg(test)]
@@ -98,4 +95,3 @@ mod tests {
         assert!(out.content.contains("binary file"));
     }
 }
-
