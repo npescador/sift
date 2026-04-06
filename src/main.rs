@@ -34,10 +34,21 @@ fn run() -> Result<i32> {
             if args.is_empty() {
                 anyhow::bail!("no command specified — run `sift --help` for usage");
             }
-            // Phase 3: executor::execute(&args) will run and capture output
-            // Phase 4: commands::detect(&args) will route to the right filter
-            println!("sift: {:?}", args);
-            Ok(0)
+
+            let program = &args[0];
+            let rest = &args[1..];
+
+            let output = executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?;
+
+            // Phase 4: commands::detect() will replace passthrough with filtered output
+            if !output.stdout.is_empty() {
+                print!("{}", output.stdout);
+            }
+            if !output.stderr.is_empty() {
+                eprint!("{}", output.stderr);
+            }
+
+            Ok(output.exit_code)
         }
     }
 }
