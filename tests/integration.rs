@@ -11,7 +11,7 @@ fn sift_bin() -> &'static str {
 #[test]
 fn help_flag_exits_zero_and_shows_description() {
     let out = Command::new(sift_bin())
-        .arg("--help")
+        .arg("-h")
         .output()
         .expect("failed to run sift");
     assert!(out.status.success());
