@@ -122,8 +122,7 @@ pub fn run(opts: InitOptions) -> Result<()> {
 
 fn install_shell_hook() -> Result<()> {
     let rc_path = detect_rc_file()?;
-    let current = fs::read_to_string(&rc_path)
-        .unwrap_or_default();
+    let current = fs::read_to_string(&rc_path).unwrap_or_default();
 
     let block = build_shell_block();
 
@@ -136,10 +135,7 @@ fn install_shell_hook() -> Result<()> {
     fs::write(&rc_path, new_content)
         .with_context(|| format!("failed to write {}", rc_path.display()))?;
 
-    println!(
-        "✅ Shell hooks installed in {}",
-        rc_path.display()
-    );
+    println!("✅ Shell hooks installed in {}", rc_path.display());
     println!();
     println!("   Wrapped commands: git, xcodebuild, xcrun, swiftlint");
     println!();
@@ -177,9 +173,7 @@ fn install_claude_md() -> Result<()> {
     let path = PathBuf::from("CLAUDE.md");
     let current = fs::read_to_string(&path).unwrap_or_default();
 
-    let block = format!(
-        "{CLAUDE_MD_BLOCK_START}\n{CLAUDE_MD_CONTENT}\n{CLAUDE_MD_BLOCK_END}\n"
-    );
+    let block = format!("{CLAUDE_MD_BLOCK_START}\n{CLAUDE_MD_CONTENT}\n{CLAUDE_MD_BLOCK_END}\n");
 
     let new_content = if current.contains(CLAUDE_MD_BLOCK_START) {
         replace_block(&current, CLAUDE_MD_BLOCK_START, CLAUDE_MD_BLOCK_END, &block)
@@ -189,8 +183,7 @@ fn install_claude_md() -> Result<()> {
         format!("{}\n\n{}", current.trim_end_matches('\n'), block)
     };
 
-    fs::write(&path, new_content)
-        .with_context(|| "failed to write CLAUDE.md")?;
+    fs::write(&path, new_content).with_context(|| "failed to write CLAUDE.md")?;
 
     println!("✅ CLAUDE.md updated with sift instructions");
     Ok(())
@@ -207,9 +200,7 @@ fn install_copilot_instructions() -> Result<()> {
     let path = dir.join("copilot-instructions.md");
     let current = fs::read_to_string(&path).unwrap_or_default();
 
-    let block = format!(
-        "{COPILOT_BLOCK_START}\n{COPILOT_CONTENT}\n{COPILOT_BLOCK_END}\n"
-    );
+    let block = format!("{COPILOT_BLOCK_START}\n{COPILOT_CONTENT}\n{COPILOT_BLOCK_END}\n");
 
     let new_content = if current.contains(COPILOT_BLOCK_START) {
         replace_block(&current, COPILOT_BLOCK_START, COPILOT_BLOCK_END, &block)
@@ -249,8 +240,7 @@ fn uninstall_all() -> Result<()> {
     if let Ok(content) = fs::read_to_string(&claude_path) {
         if content.contains(CLAUDE_MD_BLOCK_START) {
             let new = remove_block(&content, CLAUDE_MD_BLOCK_START, CLAUDE_MD_BLOCK_END);
-            fs::write(&claude_path, new)
-                .with_context(|| "failed to write CLAUDE.md")?;
+            fs::write(&claude_path, new).with_context(|| "failed to write CLAUDE.md")?;
             println!("🗑  Removed sift block from CLAUDE.md");
             any = true;
         }
@@ -310,16 +300,16 @@ fn show_status() -> Result<()> {
     println!("  CLAUDE.md:    {claude_status}");
 
     // copilot-instructions
-    let copilot_status =
-        if let Ok(content) = fs::read_to_string(".github/copilot-instructions.md") {
-            if content.contains(COPILOT_BLOCK_START) {
-                "✅ installed  (.github/copilot-instructions.md)".to_string()
-            } else {
-                "✗  not installed  (run: sift init --copilot)".to_string()
-            }
+    let copilot_status = if let Ok(content) = fs::read_to_string(".github/copilot-instructions.md")
+    {
+        if content.contains(COPILOT_BLOCK_START) {
+            "✅ installed  (.github/copilot-instructions.md)".to_string()
         } else {
-            "✗  not found  (run: sift init --copilot)".to_string()
-        };
+            "✗  not installed  (run: sift init --copilot)".to_string()
+        }
+    } else {
+        "✗  not found  (run: sift init --copilot)".to_string()
+    };
     println!("  Copilot:      {copilot_status}");
 
     println!();
