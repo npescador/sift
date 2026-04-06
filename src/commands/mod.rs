@@ -20,6 +20,19 @@ pub enum CommandFamily {
     Unknown,
 }
 
+impl CommandFamily {
+    /// Return a short lowercase string identifying the command family.
+    pub fn name(&self) -> &'static str {
+        match self {
+            CommandFamily::Git(_) => "git",
+            CommandFamily::Grep => "grep",
+            CommandFamily::Read => "read",
+            CommandFamily::Xcodebuild(_) => "xcodebuild",
+            CommandFamily::Unknown => "unknown",
+        }
+    }
+}
+
 /// Detect the command family from the argument list.
 ///
 /// Returns `CommandFamily::Unknown` for unrecognized commands.

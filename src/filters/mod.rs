@@ -27,10 +27,8 @@ pub struct FilterOutput {
     /// The filtered content to print to stdout.
     pub content: String,
     /// Size of the original raw output in bytes.
-    #[allow(dead_code)] // Phase 10: used by tracking::TrackingRecord
     pub original_bytes: usize,
     /// Size of the filtered output in bytes.
-    #[allow(dead_code)] // Phase 10: used by tracking::TrackingRecord
     pub filtered_bytes: usize,
 }
 

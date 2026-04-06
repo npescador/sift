@@ -36,8 +36,40 @@ fn run() -> Result<i32> {
 
     match cli.command {
         cli::SiftCommand::Stats { all: _ } => {
-            // Phase 10: real implementation via tracking::Tracker
-            println!("sift stats: tracking not yet implemented");
+            let stats = tracking::StatsFile::load();
+            let summary = stats.summary();
+
+            if summary.total == 0 {
+                println!("No sift invocations recorded yet.");
+                println!("Run `sift <command>` to start tracking.");
+                return Ok(0);
+            }
+
+            println!("Sift Statistics");
+            println!("{}", "─".repeat(41));
+            println!("  Invocations:    {}", summary.total);
+            println!(
+                "  Original bytes: {}",
+                format_bytes(summary.total_original_bytes)
+            );
+            println!(
+                "  Filtered bytes: {}",
+                format_bytes(summary.total_filtered_bytes)
+            );
+            println!(
+                "  Bytes saved:    {}  ({:.1}% avg)",
+                format_bytes(summary.savings_bytes()),
+                summary.savings_percent()
+            );
+
+            if !summary.by_family.is_empty() {
+                println!("{}", "─".repeat(41));
+                println!("  By command:");
+                for (family, count) in &summary.by_family {
+                    println!("    {:<12} {} runs", family, count);
+                }
+            }
+
             Ok(0)
         }
         cli::SiftCommand::Proxy(args) => {
@@ -50,7 +82,18 @@ fn run() -> Result<i32> {
 
             let output = executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?;
 
+            let family = commands::detect(&args);
             let filter_output = apply_filter(&args, &output.stdout, verbosity);
+
+            if cfg.tracking.enabled {
+                tracking::StatsFile::append(tracking::TrackingRecord::new(
+                    family.name(),
+                    filter_output.original_bytes,
+                    filter_output.filtered_bytes,
+                    output.exit_code,
+                    output.duration_ms,
+                ));
+            }
 
             if !filter_output.content.is_empty() {
                 print!("{}", filter_output.content);
@@ -93,5 +136,16 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             }
         },
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
+    }
+}
+
+/// Format a byte count as a human-readable string (B / KB / MB).
+fn format_bytes(bytes: usize) -> String {
+    if bytes >= 1_000_000 {
+        format!("{:.1} MB", bytes as f64 / 1_000_000.0)
+    } else if bytes >= 1_000 {
+        format!("{:.1} KB", bytes as f64 / 1_000.0)
+    } else {
+        format!("{bytes} B")
     }
 }
