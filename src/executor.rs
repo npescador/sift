@@ -22,7 +22,7 @@ pub struct ExecutorOutput {
 /// # Exit code contract
 /// The returned `exit_code` is always the exact code from the subprocess.
 /// This function never alters it.
-pub fn execute(program: &str, args: &[String]) -> Result<ExecutorOutput, SiftError> {
+pub fn execute(program: &str, _args: &[String]) -> Result<ExecutorOutput, SiftError> {
     // Phase 3: real implementation using std::process::Command
     Err(SiftError::CommandNotFound(format!(
         "{program} — executor not yet implemented"

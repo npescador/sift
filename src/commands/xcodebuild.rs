@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Stub: wired into commands/mod.rs in Phase 4
+
 /// Xcodebuild subcommands that Sift has specialized filters for.
 ///
 /// xcodebuild uses positional action keywords (`build`, `test`) optionally

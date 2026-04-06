@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Stub: SiftError::Config used in Phase 9
+
 use thiserror::Error;
 
 /// Errors owned by Sift itself (distinct from wrapped command failures).

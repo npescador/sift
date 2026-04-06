@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Stub: FilterOutput used from main.rs in Phase 3
+
 pub mod git_diff;
 pub mod git_status;
 pub mod grep;

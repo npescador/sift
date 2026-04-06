@@ -6,7 +6,7 @@ use serde::Deserialize;
 ///
 /// All fields are optional in the TOML file — missing fields use their
 /// `Default` implementation. A missing config file is not an error.
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(default)]
 pub struct Config {
     pub defaults: DefaultsConfig,
@@ -24,15 +24,6 @@ pub struct DefaultsConfig {
 #[serde(default)]
 pub struct TrackingConfig {
     pub enabled: bool,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            defaults: DefaultsConfig::default(),
-            tracking: TrackingConfig::default(),
-        }
-    }
 }
 
 impl Default for DefaultsConfig {
