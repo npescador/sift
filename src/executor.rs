@@ -31,16 +31,13 @@ pub struct ExecutorOutput {
 pub fn execute(program: &str, args: &[String]) -> Result<ExecutorOutput, SiftError> {
     let start = Instant::now();
 
-    let output = Command::new(program)
-        .args(args)
-        .output()
-        .map_err(|e| {
-            if e.kind() == std::io::ErrorKind::NotFound {
-                SiftError::CommandNotFound(program.to_string())
-            } else {
-                SiftError::Io(e)
-            }
-        })?;
+    let output = Command::new(program).args(args).output().map_err(|e| {
+        if e.kind() == std::io::ErrorKind::NotFound {
+            SiftError::CommandNotFound(program.to_string())
+        } else {
+            SiftError::Io(e)
+        }
+    })?;
 
     let duration_ms = start.elapsed().as_millis() as u64;
 
@@ -53,4 +50,3 @@ pub fn execute(program: &str, args: &[String]) -> Result<ExecutorOutput, SiftErr
         duration_ms,
     })
 }
-

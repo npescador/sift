@@ -38,8 +38,7 @@ fn run() -> Result<i32> {
             let program = &args[0];
             let rest = &args[1..];
 
-            let output = executor::execute(program, rest)
-                .map_err(|e| anyhow::anyhow!("{e}"))?;
+            let output = executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?;
 
             // Phase 4: commands::detect() will replace passthrough with filtered output
             if !output.stdout.is_empty() {
@@ -53,4 +52,3 @@ fn run() -> Result<i32> {
         }
     }
 }
-
