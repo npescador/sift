@@ -16,7 +16,7 @@ fn help_flag_exits_zero_and_shows_description() {
         .expect("failed to run sift");
     assert!(out.status.success());
     let stdout = String::from_utf8_lossy(&out.stdout);
-    assert!(stdout.contains("smart output reduction"));
+    assert!(stdout.contains("Smart output reduction"));
 }
 
 #[test]

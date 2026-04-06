@@ -62,7 +62,10 @@ mod tests {
 
     #[test]
     fn detect_git_returns_git_family() {
-        assert!(matches!(detect(&args(&["git", "status"])), CommandFamily::Git(_)));
+        assert!(matches!(
+            detect(&args(&["git", "status"])),
+            CommandFamily::Git(_)
+        ));
     }
 
     #[test]
