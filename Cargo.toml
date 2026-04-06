@@ -1,0 +1,36 @@
+[package]
+name = "sift-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Smart output reduction layer for AI-assisted coding workflows"
+license = "MIT"
+repository = "https://github.com/npescador/sift"
+homepage = "https://github.com/npescador/sift"
+readme = "README.md"
+keywords = ["cli", "developer-tools", "ai", "terminal", "output"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "sift"
+path = "src/main.rs"
+
+[dependencies]
+# CLI argument parsing — industry standard, derive API keeps boilerplate minimal
+clap = { version = "4", features = ["derive"] }
+# Ergonomic error type derivation for library-facing errors
+thiserror = "2"
+# Application-level error propagation with context in main.rs
+anyhow = "1"
+# Config file deserialization — used in config.rs with #[derive(Deserialize)]
+serde = { version = "1", features = ["derive"] }
+# TOML config file format — human-editable, widely understood by developers
+toml = "0.8"
+
+[dev-dependencies]
+
+[profile.release]
+strip = true
+opt-level = 3
+lto = true
+codegen-units = 1
