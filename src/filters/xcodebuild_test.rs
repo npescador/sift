@@ -14,7 +14,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     let mut passed = 0usize;
     let mut failed = 0usize;
-    let mut skipped = 0usize;
+    let skipped = 0usize;
     let mut failures: Vec<FailedTest> = Vec::new();
     let mut current_failure: Option<FailedTest> = None;
     let mut test_result = "";
@@ -23,9 +23,14 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         let trimmed = line.trim();
 
         if trimmed.contains("' passed (") {
+            if let Some(f) = current_failure.take() {
+                failures.push(f);
+            }
             passed += 1;
-            current_failure = None;
         } else if trimmed.contains("' failed (") {
+            if let Some(f) = current_failure.take() {
+                failures.push(f);
+            }
             failed += 1;
             let name = extract_test_name(trimmed);
             current_failure = Some(FailedTest {
@@ -116,10 +121,7 @@ struct FailedTest {
 /// Extract test name from a line like:
 /// `Test Case '-[MyAppTests testLogin]' failed (0.123 seconds)`
 fn extract_test_name(line: &str) -> String {
-    line.split('\'')
-        .nth(1)
-        .unwrap_or(line)
-        .to_string()
+    line.split('\'').nth(1).unwrap_or(line).to_string()
 }
 
 fn shorten_path(path: &str) -> String {
