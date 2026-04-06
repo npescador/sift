@@ -24,7 +24,15 @@ fn main() {
 
 fn run() -> Result<i32> {
     let cli = cli::Cli::parse();
-    let verbosity = cli.verbosity();
+    let cfg = config::load();
+
+    let verbosity = if cli.raw {
+        Verbosity::Raw
+    } else if cli.verbose > 0 {
+        cli.verbosity()
+    } else {
+        config::parse_verbosity(&cfg.defaults.verbosity)
+    };
 
     match cli.command {
         cli::SiftCommand::Stats { all: _ } => {
