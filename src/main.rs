@@ -149,3 +149,27 @@ fn format_bytes(bytes: usize) -> String {
         format!("{bytes} B")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::format_bytes;
+
+    #[test]
+    fn format_bytes_shows_b_for_small_values() {
+        assert_eq!(format_bytes(0), "0 B");
+        assert_eq!(format_bytes(999), "999 B");
+    }
+
+    #[test]
+    fn format_bytes_shows_kb_for_thousands() {
+        assert_eq!(format_bytes(1_000), "1.0 KB");
+        assert_eq!(format_bytes(50_000), "50.0 KB");
+        assert_eq!(format_bytes(999_999), "1000.0 KB");
+    }
+
+    #[test]
+    fn format_bytes_shows_mb_for_millions() {
+        assert_eq!(format_bytes(1_000_000), "1.0 MB");
+        assert_eq!(format_bytes(2_500_000), "2.5 MB");
+    }
+}
