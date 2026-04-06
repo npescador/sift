@@ -152,6 +152,12 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
                 filters::FilterOutput::passthrough(stdout)
             }
         },
+        CommandFamily::Xcrun(sub) => match sub {
+            commands::xcrun::XcrunSubcommand::SimctlList => {
+                filters::xcrun_simctl::filter(stdout, verbosity)
+            }
+            commands::xcrun::XcrunSubcommand::Other => filters::FilterOutput::passthrough(stdout),
+        },
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }
