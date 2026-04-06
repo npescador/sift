@@ -27,13 +27,16 @@ pub struct FilterOutput {
     /// The filtered content to print to stdout.
     pub content: String,
     /// Size of the original raw output in bytes.
+    #[allow(dead_code)] // Phase 10: used by tracking::TrackingRecord
     pub original_bytes: usize,
     /// Size of the filtered output in bytes.
+    #[allow(dead_code)] // Phase 10: used by tracking::TrackingRecord
     pub filtered_bytes: usize,
 }
 
 impl FilterOutput {
     /// Percentage of bytes saved vs the original output.
+    #[allow(dead_code)] // Phase 10: used by tracking stats display
     pub fn savings_percent(&self) -> f64 {
         if self.original_bytes == 0 {
             return 0.0;
