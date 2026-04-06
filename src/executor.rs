@@ -12,7 +12,6 @@ pub struct ExecutorOutput {
     pub stdout: String,
     pub stderr: String,
     pub exit_code: i32,
-    #[allow(dead_code)] // Phase 10: used by tracking::TrackingRecord
     pub duration_ms: u64,
 }
 

@@ -20,7 +20,20 @@ pub enum CommandFamily {
     Unknown,
 }
 
-/// Detect the command family from the argument list.
+impl CommandFamily {
+    /// Return a short lowercase string identifying the command family.
+    pub fn name(&self) -> &'static str {
+        match self {
+            CommandFamily::Git(_) => "git",
+            CommandFamily::Grep => "grep",
+            CommandFamily::Read => "read",
+            CommandFamily::Xcodebuild(_) => "xcodebuild",
+            CommandFamily::Unknown => "unknown",
+        }
+    }
+}
+
+
 ///
 /// Returns `CommandFamily::Unknown` for unrecognized commands.
 /// Safe passthrough is always the fallback — Sift never blocks a command.

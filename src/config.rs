@@ -8,8 +8,6 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct Config {
     pub defaults: DefaultsConfig,
-    /// Phase 10: used by tracking::Tracker to decide whether to record metrics.
-    #[allow(dead_code)]
     pub tracking: TrackingConfig,
 }
 
@@ -25,8 +23,6 @@ pub struct DefaultsConfig {
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct TrackingConfig {
-    /// Phase 10: gates tracking::Tracker recording.
-    #[allow(dead_code)]
     pub enabled: bool,
 }
 
