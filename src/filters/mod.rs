@@ -4,6 +4,7 @@ pub mod grep;
 pub mod read;
 pub mod xcodebuild_build;
 pub mod xcodebuild_test;
+pub mod xcrun_simctl;
 
 /// Verbosity level controlling how much output Sift retains.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
