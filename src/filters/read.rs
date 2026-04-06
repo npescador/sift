@@ -1,12 +1,97 @@
-#![allow(dead_code)] // Stub: implemented in Phase 7
-
 use crate::filters::{FilterOutput, Verbosity};
+
+/// Default max lines shown in Compact mode.
+const COMPACT_MAX_LINES: usize = 100;
 
 /// Filter `cat` / file read output — safe truncation with line range support.
 ///
-/// Truncates to `max_lines` (configurable). Adds a notice when truncated.
-/// Binary files are detected and reported without content.
-pub fn filter(raw: &str, _verbosity: Verbosity) -> FilterOutput {
-    // Phase 7: real implementation
-    FilterOutput::passthrough(raw)
+/// Compact: truncates to COMPACT_MAX_LINES with a notice.
+/// Verbose: truncates to 2× limit.
+/// VeryVerbose+: full content.
+pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
+    let original_bytes = raw.len();
+
+    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
+        return FilterOutput::passthrough(raw);
+    }
+
+    // Detect binary content early — don't attempt to display it
+    if is_likely_binary(raw) {
+        let content = "(binary file — use --raw to see raw bytes)\n".to_string();
+        let filtered_bytes = content.len();
+        return FilterOutput {
+            content,
+            original_bytes,
+            filtered_bytes,
+        };
+    }
+
+    let max_lines = match verbosity {
+        Verbosity::Compact => COMPACT_MAX_LINES,
+        Verbosity::Verbose => COMPACT_MAX_LINES * 2,
+        _ => usize::MAX,
+    };
+
+    let lines: Vec<&str> = raw.lines().collect();
+    let total_lines = lines.len();
+
+    if total_lines <= max_lines {
+        return FilterOutput::passthrough(raw);
+    }
+
+    let shown: Vec<&str> = lines[..max_lines].to_vec();
+    let remaining = total_lines - max_lines;
+
+    let mut out = shown.join("\n");
+    out.push('\n');
+    out.push_str(&format!(
+        "\n… {remaining} more line{} (use -vv or --raw to see all {total_lines} lines)\n",
+        if remaining == 1 { "" } else { "s" }
+    ));
+
+    let filtered_bytes = out.len();
+    FilterOutput {
+        content: out,
+        original_bytes,
+        filtered_bytes,
+    }
+}
+
+/// Heuristic binary detection: look for null bytes in the first 8KB.
+fn is_likely_binary(content: &str) -> bool {
+    content.bytes().take(8192).any(|b| b == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn short_file_returns_passthrough() {
+        let content = "line1\nline2\nline3\n";
+        let out = filter(content, Verbosity::Compact);
+        assert_eq!(out.content, content);
+    }
+
+    #[test]
+    fn long_file_truncated_with_notice() {
+        let content: String = (0..200).map(|i| format!("line {i}\n")).collect();
+        let out = filter(&content, Verbosity::Compact);
+        assert!(out.content.contains("more lines"));
+        assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn very_verbose_returns_passthrough() {
+        let content: String = (0..200).map(|i| format!("line {i}\n")).collect();
+        let out = filter(&content, Verbosity::VeryVerbose);
+        assert_eq!(out.content, content);
+    }
+
+    #[test]
+    fn binary_file_shows_notice() {
+        let content = "hello\0world";
+        let out = filter(content, Verbosity::Compact);
+        assert!(out.content.contains("binary file"));
+    }
 }
