@@ -2,9 +2,6 @@ pub mod git;
 pub mod grep;
 pub mod read;
 pub mod xcodebuild;
-pub mod grep;
-pub mod read;
-pub mod xcodebuild;
 
 use git::GitSubcommand;
 use xcodebuild::XcodebuildSubcommand;

@@ -60,23 +60,15 @@ fn run() -> Result<i32> {
 ///
 /// Detects the command family from `args`, selects the filter, and applies it.
 /// Unknown commands and `--raw` mode always return unmodified output.
-fn apply_filter(
-    args: &[String],
-    stdout: &str,
-    verbosity: Verbosity,
-) -> filters::FilterOutput {
+fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters::FilterOutput {
     if verbosity == Verbosity::Raw {
         return filters::FilterOutput::passthrough(stdout);
     }
 
     match commands::detect(args) {
         CommandFamily::Git(sub) => match sub {
-            commands::git::GitSubcommand::Status => {
-                filters::git_status::filter(stdout, verbosity)
-            }
-            commands::git::GitSubcommand::Diff => {
-                filters::git_diff::filter(stdout, verbosity)
-            }
+            commands::git::GitSubcommand::Status => filters::git_status::filter(stdout, verbosity),
+            commands::git::GitSubcommand::Diff => filters::git_diff::filter(stdout, verbosity),
             commands::git::GitSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
         CommandFamily::Grep => filters::grep::filter(stdout, verbosity),
@@ -95,4 +87,3 @@ fn apply_filter(
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }
-
