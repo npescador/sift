@@ -1,0 +1,26 @@
+[package]
+name = "sift-cli"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Smart output reduction layer for AI-assisted coding workflows"
+license = "MIT"
+repository = "https://github.com/npescador/sift"
+homepage = "https://github.com/npescador/sift"
+readme = "README.md"
+keywords = ["cli", "developer-tools", "ai", "terminal", "output"]
+categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "sift"
+path = "src/main.rs"
+
+[dependencies]
+
+[dev-dependencies]
+
+[profile.release]
+strip = true
+opt-level = 3
+lto = true
+codegen-units = 1
