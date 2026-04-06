@@ -3,6 +3,7 @@ pub mod git_status;
 pub mod grep;
 pub mod read;
 pub mod xcodebuild_build;
+pub mod xcodebuild_settings;
 pub mod xcodebuild_test;
 pub mod xcrun_simctl;
 
