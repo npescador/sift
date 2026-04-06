@@ -52,7 +52,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
                     let msg = trimmed
                         .split(": error:")
                         .nth(1)
-                        .or_else(|| trimmed.splitn(2, ':').nth(1))
+                        .or_else(|| trimmed.split_once(':').map(|x| x.1))
                         .unwrap_or(trimmed)
                         .trim();
                     f.message = msg.to_string();
