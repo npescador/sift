@@ -64,7 +64,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     ));
 
     let filtered_bytes = out.len();
-    FilterOutput { content: out, original_bytes, filtered_bytes }
+    FilterOutput {
+        content: out,
+        original_bytes,
+        filtered_bytes,
+    }
 }
 
 fn flush_file(out: &mut String, file: &str, additions: i32, deletions: i32, _verbosity: Verbosity) {
@@ -125,4 +129,3 @@ index 111..222 100644
         assert_eq!(extract_diff_filename(line), "src/main.rs");
     }
 }
-

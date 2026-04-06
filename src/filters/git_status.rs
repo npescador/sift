@@ -64,7 +64,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     if staged.is_empty() && modified.is_empty() && untracked.is_empty() {
         let content = format!("{branch_line}\nnothing to commit, working tree clean\n");
         let filtered_bytes = content.len();
-        return FilterOutput { content, original_bytes, filtered_bytes };
+        return FilterOutput {
+            content,
+            original_bytes,
+            filtered_bytes,
+        };
     }
 
     let max_files = match verbosity {
@@ -82,7 +86,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     format_group(&mut out, "untracked", &untracked, max_files);
 
     let filtered_bytes = out.len();
-    FilterOutput { content: out, original_bytes, filtered_bytes }
+    FilterOutput {
+        content: out,
+        original_bytes,
+        filtered_bytes,
+    }
 }
 
 enum Section {
@@ -162,4 +170,3 @@ Untracked files:
         assert!(out.content.contains("nothing to commit"));
     }
 }
-
