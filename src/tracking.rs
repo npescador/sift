@@ -40,6 +40,8 @@ impl TrackingRecord {
         self.original_bytes.saturating_sub(self.filtered_bytes)
     }
 
+    /// Percentage of bytes saved for this single invocation.
+    #[allow(dead_code)] // available for per-record display in future phases
     pub fn savings_percent(&self) -> f64 {
         if self.original_bytes == 0 {
             return 0.0;
@@ -92,7 +94,11 @@ impl StatsFile {
     pub fn summary(&self) -> StatsSummary {
         let total = self.records.len();
         let total_original_bytes: usize = self.records.iter().map(|r| r.original_bytes).sum();
-        let total_filtered_bytes: usize = self.records.iter().map(|r| r.filtered_bytes).sum();
+        let total_filtered_bytes: usize = self
+            .records
+            .iter()
+            .map(|r| r.original_bytes - r.savings_bytes())
+            .sum();
         let mut by_family: BTreeMap<String, usize> = BTreeMap::new();
         for r in &self.records {
             *by_family.entry(r.command_family.clone()).or_insert(0) += 1;
