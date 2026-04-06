@@ -1,0 +1,48 @@
+# Rust build artifacts
+/target/
+
+# Backup files created by rustfmt
+**/*.rs.bk
+
+# LLDB
+*.pdb
+
+# Note: Cargo.lock is intentionally committed for binary crates
+# to ensure reproducible builds
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon.
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# IDE
+.idea/
+*.iml
+.vscode/settings.json
+*.swp
+*.swo
+*.orig
+
+# Local environment / secrets
+.env
+.env.local
+*.local.toml
+config.local.toml
+
+# Test output artifacts
+/test-output/
+/tests/fixtures/generated/

@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: Documentation
+    url: https://github.com/ipescador/sift/blob/main/README.md
+    about: Read the README first — your question may already be answered.
+  - name: Architecture Overview
+    url: https://github.com/ipescador/sift/blob/main/ARCHITECTURE.md
+    about: Understand how Sift works before proposing changes.
