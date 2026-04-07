@@ -1,3 +1,4 @@
+pub mod curl;
 pub mod git;
 pub mod grep;
 pub mod read;
@@ -23,6 +24,7 @@ pub enum CommandFamily {
     Read,
     Ls,
     Find,
+    Curl,
     Xcodebuild(XcodebuildSubcommand),
     Xcrun(XcrunSubcommand),
     Swiftlint,
@@ -42,6 +44,7 @@ impl CommandFamily {
             CommandFamily::Read => "read",
             CommandFamily::Ls => "ls",
             CommandFamily::Find => "find",
+            CommandFamily::Curl => "curl",
             CommandFamily::Xcodebuild(_) => "xcodebuild",
             CommandFamily::Xcrun(_) => "xcrun",
             CommandFamily::Swiftlint => "swiftlint",
@@ -69,6 +72,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "cat" | "less" | "head" | "tail" => CommandFamily::Read,
         "ls" | "eza" | "exa" => CommandFamily::Ls,
         "find" => CommandFamily::Find,
+        "curl" => CommandFamily::Curl,
         "xcodebuild" => CommandFamily::Xcodebuild(xcodebuild::detect_subcommand(args)),
         "xcrun" => CommandFamily::Xcrun(xcrun::detect_subcommand(args)),
         "swiftlint" => CommandFamily::Swiftlint,

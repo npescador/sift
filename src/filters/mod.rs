@@ -1,3 +1,4 @@
+pub mod curl;
 pub mod fastlane;
 pub mod git_diff;
 pub mod git_log;
