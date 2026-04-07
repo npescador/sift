@@ -8,6 +8,7 @@ pub enum XcodebuildSubcommand {
     Test,
     ShowBuildSettings,
     Archive,
+    List,
     /// Any other xcodebuild invocation — passed through unfiltered.
     Other,
 }
@@ -19,6 +20,7 @@ pub fn detect_subcommand(args: &[String]) -> XcodebuildSubcommand {
             "test" | "test-without-building" => return XcodebuildSubcommand::Test,
             "-showBuildSettings" => return XcodebuildSubcommand::ShowBuildSettings,
             "archive" => return XcodebuildSubcommand::Archive,
+            "-list" => return XcodebuildSubcommand::List,
             _ => {}
         }
     }

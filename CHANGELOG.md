@@ -9,10 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.3.1] — 2026-04-07
+## [0.4.0] — 2026-04-07
+
+Xcode workflow polish. Five new capabilities covering the remaining high-value items in the v0.4.0 roadmap.
 
 ### Added
-- `sift init --xcode-project` — auto-detects `.xcodeproj` / `.xcworkspace` in the current directory, runs `xcodebuild -list` to extract schemes and targets, detects the booted iOS simulator, and writes a project-specific block to `CLAUDE.md` with ready-to-use sift commands. Idempotent: re-running updates the existing block.
+
+**New filters**
+- `xcodebuild -list` — project name, schemes (★ default), configurations, target count; verbose lists all targets; ~60% reduction
+- `xcodebuild build` improvements — linker errors (🔗 `ld:`, `Undefined symbols`, `clang: error: linker`) and signing/provisioning errors (🔐) detected and surfaced above compiler errors; ordering: signing → linker → compiler
+- `git log --graph` — detects `--graph` flag, strips decoration lines (`*`, `|`, `/`, `\`), delegates to existing compact log format; works for both `--oneline --graph` and multi-line `--graph`
+- `ls` / `find` for Xcode — filters output to Xcode-relevant files (`.swift`, `.xcodeproj`, `.plist`, `Package.swift`, etc.); drops `.build/`, `DerivedData/`, `.o`, `.a`, `.DS_Store`; directories always preserved
+
+**Tee mode**
+- When a filter produces empty output from non-empty input (possible false negative), Sift falls back to raw output and saves the raw to `~/.local/share/sift/raw/<timestamp>-<cmd>.txt`
+- Warning printed to stderr: `[sift] filter produced empty output — raw saved to <path>`
+- Configurable via `[tee] enabled = true/false` in `~/.config/sift/config.toml`
+
+**Command detection**
+- `XcodebuildSubcommand::List` added for `-list` flag
+- `GitSubcommand::LogGraph` added — activated when `--graph` appears anywhere in args
+- `CommandFamily::Ls` — detects `ls`, `eza`, `exa`
+- `CommandFamily::Find` — detects `find`
 
 ---
 
@@ -114,8 +132,7 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.3.1...HEAD
-[0.3.1]: https://github.com/npescador/sift/compare/v0.3.0...v0.3.1
+[Unreleased]: https://github.com/npescador/sift/compare/v0.3.0...HEAD
 [0.3.0]: https://github.com/npescador/sift/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/npescador/sift/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/npescador/sift/releases/tag/v0.1.0
