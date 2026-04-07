@@ -240,7 +240,7 @@ See **[AGENTS.md](AGENTS.md)** for setup guides for:
 
 ## Status
 
-**v0.4.0** — See [CHANGELOG.md](CHANGELOG.md) for the full version history and [ROADMAP.md](ROADMAP.md) for planned features.
+**v0.5.0** — See [CHANGELOG.md](CHANGELOG.md) for the full version history and [ROADMAP.md](ROADMAP.md) for planned features.
 
 ---
 
