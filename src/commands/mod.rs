@@ -1,11 +1,16 @@
+pub mod curl;
 pub mod git;
 pub mod grep;
+pub mod pod;
 pub mod read;
+pub mod swift_build;
 pub mod swift_package;
+pub mod tuist;
 pub mod xcodebuild;
 pub mod xcrun;
 
 use git::GitSubcommand;
+use swift_build::SwiftBuildSubcommand;
 use swift_package::SwiftPackageSubcommand;
 use xcodebuild::XcodebuildSubcommand;
 use xcrun::XcrunSubcommand;
@@ -21,11 +26,22 @@ pub enum CommandFamily {
     Read,
     Ls,
     Find,
+    Curl,
     Xcodebuild(XcodebuildSubcommand),
     Xcrun(XcrunSubcommand),
     Swiftlint,
     Fastlane,
+    SwiftFormat,
     SwiftPackage(SwiftPackageSubcommand),
+    SwiftBuild(SwiftBuildSubcommand),
+    Pod(pod::PodSubcommand),
+    Tuist(tuist::TuistSubcommand),
+    Codesign,
+    Security,
+    Agvtool,
+    XcodeSelect,
+    XcResultTool,
+    DocC,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -39,11 +55,22 @@ impl CommandFamily {
             CommandFamily::Read => "read",
             CommandFamily::Ls => "ls",
             CommandFamily::Find => "find",
+            CommandFamily::Curl => "curl",
             CommandFamily::Xcodebuild(_) => "xcodebuild",
             CommandFamily::Xcrun(_) => "xcrun",
             CommandFamily::Swiftlint => "swiftlint",
             CommandFamily::Fastlane => "fastlane",
+            CommandFamily::SwiftFormat => "swiftformat",
             CommandFamily::SwiftPackage(_) => "swift",
+            CommandFamily::SwiftBuild(_) => "swift",
+            CommandFamily::Pod(_) => "pod",
+            CommandFamily::Tuist(_) => "tuist",
+            CommandFamily::Codesign => "codesign",
+            CommandFamily::Security => "security",
+            CommandFamily::Agvtool => "agvtool",
+            CommandFamily::XcodeSelect => "xcode-select",
+            CommandFamily::XcResultTool => "xcresulttool",
+            CommandFamily::DocC => "docc",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -65,6 +92,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "cat" | "less" | "head" | "tail" => CommandFamily::Read,
         "ls" | "eza" | "exa" => CommandFamily::Ls,
         "find" => CommandFamily::Find,
+        "curl" => CommandFamily::Curl,
         "xcodebuild" => CommandFamily::Xcodebuild(xcodebuild::detect_subcommand(args)),
         "xcrun" => CommandFamily::Xcrun(xcrun::detect_subcommand(args)),
         "swiftlint" => CommandFamily::Swiftlint,
@@ -72,6 +100,21 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "swift" if args.get(1).map(|s| s.as_str()) == Some("package") => {
             CommandFamily::SwiftPackage(swift_package::detect_subcommand(args))
         }
+        "swift"
+            if args.get(1).map(|s| s.as_str()) == Some("build")
+                || args.get(1).map(|s| s.as_str()) == Some("test") =>
+        {
+            CommandFamily::SwiftBuild(swift_build::detect_subcommand(args))
+        }
+        "pod" => CommandFamily::Pod(pod::detect_subcommand(args)),
+        "swiftformat" => CommandFamily::SwiftFormat,
+        "tuist" => CommandFamily::Tuist(tuist::detect_subcommand(args)),
+        "codesign" => CommandFamily::Codesign,
+        "security" => CommandFamily::Security,
+        "agvtool" => CommandFamily::Agvtool,
+        "xcode-select" => CommandFamily::XcodeSelect,
+        "xcresulttool" => CommandFamily::XcResultTool,
+        "docc" => CommandFamily::DocC,
         _ => CommandFamily::Unknown,
     }
 }
@@ -160,7 +203,10 @@ mod tests {
     }
 
     #[test]
-    fn detect_swift_build_is_unknown() {
-        assert_eq!(detect(&args(&["swift", "build"])), CommandFamily::Unknown);
+    fn detect_swift_build_is_swift_build_family() {
+        assert!(matches!(
+            detect(&args(&["swift", "build"])),
+            CommandFamily::SwiftBuild(_)
+        ));
     }
 }

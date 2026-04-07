@@ -28,6 +28,18 @@ pub enum SiftCommand {
         /// Include all historical statistics
         #[arg(long)]
         all: bool,
+
+        /// Clear all historical statistics
+        #[arg(long)]
+        reset: bool,
+
+        /// Output statistics as JSON
+        #[arg(long)]
+        json: bool,
+
+        /// Show only the last N invocations
+        #[arg(long, value_name = "N")]
+        last: Option<usize>,
     },
 
     /// Install or manage sift shell hooks and AI agent instructions

@@ -55,9 +55,30 @@ fn run() -> Result<i32> {
             })?;
             Ok(0)
         }
-        cli::SiftCommand::Stats { all: _ } => {
-            let stats = tracking::StatsFile::load();
-            let summary = stats.summary();
+        cli::SiftCommand::Stats {
+            all: _,
+            reset,
+            json,
+            last,
+        } => {
+            if reset {
+                if tracking::StatsFile::reset() {
+                    println!("Sift statistics cleared.");
+                } else {
+                    eprintln!("[sift] failed to reset statistics");
+                }
+                return Ok(0);
+            }
+
+            let summary = match last {
+                Some(n) => tracking::StatsFile::summary_last(n),
+                None => tracking::StatsFile::summary(),
+            };
+
+            if json {
+                println!("{}", tracking::StatsFile::to_json());
+                return Ok(0);
+            }
 
             if summary.total == 0 {
                 println!("No sift invocations recorded yet.");
@@ -171,6 +192,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Read => filters::read::filter(stdout, verbosity),
         CommandFamily::Ls => filters::ls_xcode::filter_ls(stdout, verbosity),
         CommandFamily::Find => filters::ls_xcode::filter_find(stdout, verbosity),
+        CommandFamily::Curl => filters::curl::filter(stdout, verbosity),
         CommandFamily::Xcodebuild(sub) => match sub {
             commands::xcodebuild::XcodebuildSubcommand::Build => {
                 filters::xcodebuild_build::filter(stdout, verbosity)
@@ -195,11 +217,38 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             commands::xcrun::XcrunSubcommand::SimctlList => {
                 filters::xcrun_simctl::filter(stdout, verbosity)
             }
+            commands::xcrun::XcrunSubcommand::SimctlBoot
+            | commands::xcrun::XcrunSubcommand::SimctlInstall
+            | commands::xcrun::XcrunSubcommand::SimctlLaunch
+            | commands::xcrun::XcrunSubcommand::SimctlErase
+            | commands::xcrun::XcrunSubcommand::SimctlDelete => {
+                filters::xcrun_simctl::filter_simctl_action(stdout, verbosity)
+            }
             commands::xcrun::XcrunSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
+        CommandFamily::XcResultTool => filters::xcresulttool::filter(stdout, verbosity),
+        CommandFamily::DocC => filters::docc::filter(stdout, verbosity),
         CommandFamily::Swiftlint => filters::swiftlint::filter(stdout, verbosity),
         CommandFamily::Fastlane => filters::fastlane::filter(stdout, verbosity),
+        CommandFamily::SwiftFormat => filters::swiftformat::filter(stdout, verbosity),
         CommandFamily::SwiftPackage(_) => filters::swift_package::filter(stdout, verbosity),
+        CommandFamily::Pod(_) => filters::pod::filter(stdout, verbosity),
+        CommandFamily::Tuist(_) => filters::tuist::filter(stdout, verbosity),
+        CommandFamily::Codesign => filters::codesign::filter(stdout, verbosity),
+        CommandFamily::Security => filters::codesign::filter_security(stdout, verbosity),
+        CommandFamily::Agvtool => filters::agvtool::filter(stdout, verbosity),
+        CommandFamily::XcodeSelect => filters::xcode_select::filter(stdout, verbosity),
+        CommandFamily::SwiftBuild(sub) => match sub {
+            commands::swift_build::SwiftBuildSubcommand::Build => {
+                filters::swift_build::filter(stdout, verbosity)
+            }
+            commands::swift_build::SwiftBuildSubcommand::Test => {
+                filters::swift_test::filter(stdout, verbosity)
+            }
+            commands::swift_build::SwiftBuildSubcommand::Other => {
+                filters::FilterOutput::passthrough(stdout)
+            }
+        },
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }

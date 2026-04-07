@@ -62,21 +62,93 @@ sift git status
 sift git diff HEAD~1
 sift rg "fn main" src/
 sift xcodebuild test -scheme MyApp -destination "platform=iOS Simulator,name=iPhone 16"
+sift swift build
+sift pod install
 sift stats
 ```
+
+### Shell integration (recommended)
+
+Run once to inject automatic shell hooks so every supported command is filtered transparently:
+
+```bash
+sift init --shell          # wraps git, xcodebuild, xcrun, swiftlint, pod… in ~/.zshrc
+sift init --claude         # creates/updates CLAUDE.md for Claude Code
+sift init --copilot        # creates/updates .github/copilot-instructions.md
+sift init --show           # show current installation status
+sift init --uninstall      # remove all sift-managed hooks and instruction files
+```
+
+After `sift init --shell`, commands like `git diff` automatically go through Sift — no prefix needed.
 
 ---
 
 ## Supported Commands
 
-| Command Family      | Status   | Description                                    |
-|---------------------|----------|------------------------------------------------|
-| `git status`        | ✅ v0.1  | Grouped file state summary with counts         |
-| `git diff`          | ✅ v0.1  | Per-file stats, useful hunk headers only       |
-| `grep` / `rg`       | ✅ v0.1  | Results grouped by file, capped per file       |
-| `cat` / file reads  | ✅ v0.1  | Safe truncation, binary detection              |
-| `xcodebuild build`  | ✅ v0.1  | Grouped unique errors, warning count summary   |
-| `xcodebuild test`   | ✅ v0.1  | Pass/fail counts, failed test details          |
+### Version Control
+
+| Command | Description |
+|---|---|
+| `git status` | Grouped file state summary with counts |
+| `git diff` | Per-file `+N -N` stats, useful hunk headers |
+| `git log` | One line per commit: hash · subject · date · author |
+| `git log --graph` | Graph decoration stripped, compact log format preserved |
+
+### iOS Build & Test
+
+| Command | Description |
+|---|---|
+| `xcodebuild build` | Errors grouped by file (compiler + linker 🔗 + signing 🔐), warning count |
+| `xcodebuild test` | Pass/fail/skip counts, failed test names and XCTAssert messages |
+| `xcodebuild archive` | Archive result, scheme/config, path, signing identity |
+| `xcodebuild -list` | Default scheme ★, configurations, target count |
+| `xcodebuild -showBuildSettings` | 16 high-signal iOS keys from ~400-line output |
+| `swift build` | Errors grouped by file, `BUILD SUCCEEDED/FAILED` |
+| `swift test` | Pass/fail counts, failed test names and assertions |
+| `xcresulttool` | Test summary from `.xcresult` bundles (CI-friendly) |
+
+### Swift Toolchain
+
+| Command | Description |
+|---|---|
+| `swift package resolve/update` | One line per package: name + version |
+| `swift package show-dependencies` | Dependency tree, compact |
+| `swiftlint` | Violations grouped by rule, errors before warnings |
+| `swiftformat` | Files changed, result summary, lint errors |
+| `docc convert/preview` | Symbols processed, warnings, output path |
+
+### Dependencies & Project Generation
+
+| Command | Description |
+|---|---|
+| `pod install` / `pod update` | One pod per line, warnings, install result |
+| `tuist generate/fetch/cache` | Targets generated, dependencies resolved, errors |
+| `fastlane` | Lane name, step progression, result + total time |
+
+### Signing & Distribution
+
+| Command | Description |
+|---|---|
+| `codesign` | Signing status, identifier, team, format |
+| `security find-identity` | Valid identities with short hash and name |
+| `agvtool` | Current/new version, files updated |
+| `xcode-select` | Active Xcode version and path |
+
+### Simulator
+
+| Command | Description |
+|---|---|
+| `xcrun simctl list` | Booted first, short UDID, iOS-only compact view |
+| `xcrun simctl boot/install/launch/erase/delete` | Compact operation result |
+
+### Search & File Utilities
+
+| Command | Description |
+|---|---|
+| `grep` / `rg` | Results grouped by file, capped per file and total |
+| `cat` / `head` / `tail` / `less` | Safe truncation, binary detection |
+| `ls` / `find` | Xcode-relevant files only; drops `.build/`, `DerivedData/`, `.o` |
+| `curl` | HTTP status, key headers, body truncated to N lines |
 
 Unknown commands pass through **unmodified** with the original exit code.
 
@@ -98,7 +170,7 @@ Default verbosity can be set in the config file.
 
 ## Configuration
 
-Sift reads `~/.config/sift/config.toml`. All fields are optional — missing file uses built-in defaults.
+Sift reads `~/.config/sift/config.toml`. All fields are optional.
 
 ```toml
 [defaults]
@@ -107,6 +179,9 @@ max_lines = 100         # default truncation limit for cat/read filter
 
 [tracking]
 enabled = true          # set false to disable stats recording
+
+[tee]
+enabled = true          # save raw output to disk when filter produces empty result
 ```
 
 **Config resolution:**
@@ -115,12 +190,21 @@ enabled = true          # set false to disable stats recording
 
 **Verbosity priority:** `--raw` > `-v` flags > config default
 
+### Tee mode
+
+When a filter produces empty output from non-empty input (possible false negative), Sift falls back to raw output and saves a copy to `~/.local/share/sift/raw/<timestamp>-<cmd>.txt` with a warning on stderr. Disable with `[tee] enabled = false`.
+
 ---
 
 ## Tracking & Savings
 
+Stats are persisted to `~/.local/share/sift/stats.db` (SQLite, `$XDG_DATA_HOME` aware). If a legacy `stats.toml` exists from an older version it is migrated automatically on first run.
+
 ```bash
-sift stats               # Show accumulated token savings
+sift stats               # show all historical savings
+sift stats --last 20     # last 20 invocations only
+sift stats --reset       # clear all history
+sift stats --json        # export full history as JSON
 ```
 
 ```
@@ -136,8 +220,6 @@ Sift Statistics
     xcodebuild   15 runs
     grep          9 runs
 ```
-
-Stats are persisted to `~/.local/share/sift/stats.toml` (`$XDG_DATA_HOME/sift/stats.toml` if set).
 
 ---
 
@@ -158,7 +240,7 @@ See **[AGENTS.md](AGENTS.md)** for setup guides for:
 
 ## Status
 
-**v0.1.0** — MVP complete. All core command filters implemented. See [ROADMAP.md](ROADMAP.md) for planned features.
+**v0.5.0** — See [CHANGELOG.md](CHANGELOG.md) for the full version history and [ROADMAP.md](ROADMAP.md) for planned features.
 
 ---
 
@@ -174,4 +256,5 @@ See **[AGENTS.md](AGENTS.md)** for setup guides for:
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+
+MIT — © 2026 Nacho Pescador Ruiz. See [LICENSE](LICENSE).

@@ -1,17 +1,28 @@
+pub mod agvtool;
+pub mod codesign;
+pub mod curl;
+pub mod docc;
 pub mod fastlane;
 pub mod git_diff;
 pub mod git_log;
 pub mod git_status;
 pub mod grep;
 pub mod ls_xcode;
+pub mod pod;
 pub mod read;
+pub mod swift_build;
 pub mod swift_package;
+pub mod swift_test;
+pub mod swiftformat;
 pub mod swiftlint;
+pub mod tuist;
+pub mod xcode_select;
 pub mod xcodebuild_archive;
 pub mod xcodebuild_build;
 pub mod xcodebuild_list;
 pub mod xcodebuild_settings;
 pub mod xcodebuild_test;
+pub mod xcresulttool;
 pub mod xcrun_simctl;
 
 /// Verbosity level controlling how much output Sift retains.

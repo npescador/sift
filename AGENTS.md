@@ -13,9 +13,15 @@ AI coding agents read terminal output as part of their context window. Without f
 | Command | Typical raw output | With Sift |
 |---|---|---|
 | `xcodebuild test` | 2,000–10,000 lines | ~10 lines |
+| `xcodebuild build` (errors) | 300–2,000 lines | ~10 lines |
 | `git diff` (large PR) | 500–5,000 lines | ~20 lines |
 | `rg "pattern" src/` | 100–1,000 lines | ~15 lines |
-| `xcodebuild build` (errors) | 300–2,000 lines | ~10 lines |
+| `pod install` | 200–500 lines | ~10 lines |
+| `swift build` (errors) | 100–1,000 lines | ~8 lines |
+| `curl` (API response) | 50–500 lines | ~8 lines |
+| `xcrun simctl list` | 300–1,000 lines | ~15 lines |
+| `fastlane beta` | 200–2,000 lines | ~10 lines |
+| `swiftlint` | 50–500 lines | ~8 lines |
 
 Reducing output means:
 - more context available for reasoning
@@ -262,7 +268,10 @@ TEST FAILED  47 tests — 45 passed, 2 failed
 ## Tracking
 
 ```bash
-sift stats
+sift stats               # show all historical savings (SQLite, multi-session)
+sift stats --last 20     # last 20 invocations only
+sift stats --reset       # clear all history
+sift stats --json        # export full history as JSON
 ```
 
 ```
@@ -337,12 +346,15 @@ When a feature branch is ready, provide this metadata to the developer:
 
 ### Milestones
 
-| # | Title | Scope |
-|---|---|---|
-| 1 | `v0.1.0 — Foundation` | MVP core |
-| 2 | `v0.2.0 — Xcode Support` | iOS/Xcode filters |
-| 3 | `v0.3.0 — Shell Integration` | fastlane, swift package, archive, init improvements |
-| 4 | `v1.0.0 — Stable Release` | Stable, full docs |
+| # | Title | Scope | Status |
+|---|---|---|---|
+| 1 | `v0.1.0 — Foundation` | MVP core | ✅ Released |
+| 2 | `v0.2.0 — Xcode Support` | iOS/Xcode filters + sift init | ✅ Released |
+| 3 | `v0.3.0 — iOS Toolchain Expansion` | fastlane, swift package, archive | ✅ Released |
+| 4 | `v0.4.0 — Xcode Workflow Polish` | xcodebuild -list, tee mode, git graph, ls/find | ✅ Released |
+| 5 | `v0.5.0 — iOS/AI Workflow Expansion` | 13 new command families, SQLite stats | ✅ Released |
+| 6 | `v0.6.0 — JSON Output` | `--json` for all filters, sift-lib crate | 🔮 Planned |
+| 7 | `v1.0.0 — Stable Release` | Stable API, full docs, Windows | 🔮 Planned |
 
 ### Labels by type
 

@@ -9,6 +9,63 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] — 2026-04-07
+
+iOS/AI workflow expansion. Thirteen new command families covering the full daily iOS development lifecycle, plus SQLite-backed persistent statistics.
+
+### Added
+
+**New filters**
+- `swift build` — compiler errors grouped by file, `BUILD SUCCEEDED/FAILED` header; ~90% reduction
+- `swift test` (SPM) — pass/fail counts, failed test names and XCTAssert messages; ~90% reduction
+- `curl` — HTTP status line, key response headers (`content-type`, `content-length`, `location`), body truncated to 20 lines; ~85% reduction
+- `pod install` / `pod update` — one pod per line with version, warnings surfaced, result summary; ~80% reduction
+- `swiftformat` — changed files listed, result summary line, lint errors in lint mode; ~75% reduction
+- `tuist generate` / `fetch` / `cache` — targets generated, dependencies resolved, errors; ~70% reduction
+- `codesign` — signing status, identifier, team, format; errors shown as-is; ~80% reduction
+- `security find-identity` — valid identities with short hash (first 8 chars) and name; ~80% reduction
+- `agvtool` — `what-version` / `new-version` / `bump-versions`: current/new number, files updated; ~85% reduction
+- `xcode-select` — active Xcode version and path for `--version` / `--print-path`; ~70% reduction
+- `xcrun simctl boot/install/launch/erase/delete` — compact operation result; ~75% reduction
+- `xcresulttool` — test summary from `.xcresult` bundles; designed for CI agents; ~90% reduction
+- `docc convert` / `preview` — symbols processed count, warnings, output path; ~75% reduction
+
+**Persistent stats (Milestone 4)**
+- SQLite persistence via `rusqlite` — records stored in `~/.local/share/sift/stats.db`
+- `sift stats` now shows multi-session historical totals (previously session-only)
+- `sift stats --last N` — show stats for the last N invocations only
+- `sift stats --reset` — delete all historical records
+- `sift stats --json` — export full record history as JSON (via `serde_json`)
+- Automatic migration: if `stats.toml` exists from a previous version, records are imported into SQLite on first run and the file is renamed to `stats.toml.bak`
+
+**Command detection**
+- `swift build` / `swift test` — new `CommandFamily::SwiftBuild` with `SwiftBuildSubcommand`
+- `curl` — new `CommandFamily::Curl`
+- `pod` — new `CommandFamily::Pod` with `PodSubcommand` (Install, Update)
+- `swiftformat` — new `CommandFamily::SwiftFormat`
+- `tuist` — new `CommandFamily::Tuist` with `TuistSubcommand` (Generate, Fetch, Cache, Edit)
+- `codesign` — new `CommandFamily::Codesign`
+- `security` — new `CommandFamily::Security`
+- `agvtool` — new `CommandFamily::Agvtool`
+- `xcode-select` — new `CommandFamily::XcodeSelect`
+- `xcresulttool` — new `CommandFamily::XcResultTool`
+- `docc` — new `CommandFamily::DocC`
+- `xcrun simctl` — extended with `SimctlBoot`, `SimctlInstall`, `SimctlLaunch`, `SimctlErase`, `SimctlDelete` subcommands
+
+**Documentation**
+- `README.md` — full rewrite: 31 commands across 7 categories, `sift init` section, updated stats flags, tee mode docs, correct license attribution
+- `ROADMAP.md` — rewritten to show actual completion status per version; planned v0.6.0 and v0.7.0 added
+- `ARCHITECTURE.md` — updated module tree (44 source files), correct `CommandFamily` enum, correct `FilterOutput` struct, updated dependencies table
+- `AGENTS.md` — updated milestones table, expanded command reduction table, new `sift stats` flags
+- `CONTRIBUTING.md` — corrected filter routing instructions (dispatch is in `main.rs::apply_filter`)
+- `LICENSE` — copyright updated to `Nacho Pescador Ruiz`
+
+### Changed
+- Test count: 289 → 292 (unit + integration)
+- `Cargo.toml`: added `rusqlite = { version = "0.31", features = ["bundled"] }` and `serde_json = "1"`
+
+---
+
 ## [0.4.0] — 2026-04-07
 
 Xcode workflow polish. Five new capabilities covering the remaining high-value items in the v0.4.0 roadmap.
@@ -132,7 +189,9 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/npescador/sift/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/npescador/sift/compare/v0.4.0...v0.5.0
+[0.4.0]: https://github.com/npescador/sift/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/npescador/sift/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/npescador/sift/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/npescador/sift/releases/tag/v0.1.0
