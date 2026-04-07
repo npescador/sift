@@ -8,6 +8,7 @@ pub mod swift_package;
 pub mod swiftlint;
 pub mod xcodebuild_archive;
 pub mod xcodebuild_build;
+pub mod xcodebuild_list;
 pub mod xcodebuild_settings;
 pub mod xcodebuild_test;
 pub mod xcrun_simctl;
