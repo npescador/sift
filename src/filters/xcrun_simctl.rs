@@ -262,3 +262,115 @@ iOS 18.0 (18.0 - 22A3351) - com.apple.CoreSimulator.SimRuntime.iOS-18-0
         assert!(out.filtered_bytes < out.original_bytes);
     }
 }
+
+/// Filter simctl action commands: boot, install, launch, erase, delete.
+///
+/// These commands typically produce minimal output (empty on success, or a PID
+/// for launch). The filter strips noise and shows a compact result.
+/// VeryVerbose+: raw passthrough.
+pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
+    let original_bytes = raw.len();
+
+    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
+        return FilterOutput::passthrough(raw);
+    }
+
+    // If empty output — success (simctl commands are silent on success)
+    if raw.trim().is_empty() {
+        let content = "\x1b[32m✓\x1b[0m Done\n".to_string();
+        let filtered_bytes = content.len();
+        return FilterOutput {
+            content,
+            original_bytes,
+            filtered_bytes,
+        };
+    }
+
+    let mut out = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Already booted message
+        if trimmed.contains("Unable to boot device") && trimmed.contains("current state: Booted") {
+            out.push_str("\x1b[33mAlready booted\x1b[0m\n");
+            continue;
+        }
+
+        // PID from launch: "com.example.app: 12345"
+        if trimmed.contains(": ") {
+            let parts: Vec<&str> = trimmed.splitn(2, ": ").collect();
+            if parts.len() == 2 && parts[1].chars().all(|c| c.is_ascii_digit()) {
+                out.push_str(&format!("Launched: PID {}\n", parts[1]));
+                continue;
+            }
+        }
+
+        // Error lines
+        if trimmed.starts_with("An error") || trimmed.starts_with("error:") {
+            out.push_str(&format!("\x1b[31m{trimmed}\x1b[0m\n"));
+            continue;
+        }
+
+        // Pass other lines through
+        out.push_str(&format!("{trimmed}\n"));
+    }
+
+    if out.is_empty() {
+        return FilterOutput::passthrough(raw);
+    }
+
+    let filtered_bytes = out.len();
+    FilterOutput {
+        content: out,
+        original_bytes,
+        filtered_bytes,
+    }
+}
+
+#[cfg(test)]
+mod simctl_action_tests {
+    use super::*;
+
+    #[test]
+    fn empty_output_shows_done() {
+        let out = filter_simctl_action("", Verbosity::Compact);
+        assert!(out.content.contains("Done"));
+    }
+
+    #[test]
+    fn whitespace_only_shows_done() {
+        let out = filter_simctl_action("   \n  ", Verbosity::Compact);
+        assert!(out.content.contains("Done"));
+    }
+
+    #[test]
+    fn launch_pid_shown() {
+        let out = filter_simctl_action("com.example.app: 12345\n", Verbosity::Compact);
+        assert!(out.content.contains("PID 12345"));
+    }
+
+    #[test]
+    fn already_booted_message_shown() {
+        let raw = "Unable to boot device in current state: Booted\n";
+        let out = filter_simctl_action(raw, Verbosity::Compact);
+        assert!(out.content.contains("Already booted"));
+    }
+
+    #[test]
+    fn error_line_colored() {
+        let raw = "An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=1).\n";
+        let out = filter_simctl_action(raw, Verbosity::Compact);
+        assert!(out.content.contains("An error"));
+    }
+
+    #[test]
+    fn very_verbose_returns_passthrough() {
+        let raw = "com.example.app: 99\n";
+        let out = filter_simctl_action(raw, Verbosity::VeryVerbose);
+        assert_eq!(out.content, raw);
+    }
+}

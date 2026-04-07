@@ -196,8 +196,17 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             commands::xcrun::XcrunSubcommand::SimctlList => {
                 filters::xcrun_simctl::filter(stdout, verbosity)
             }
+            commands::xcrun::XcrunSubcommand::SimctlBoot
+            | commands::xcrun::XcrunSubcommand::SimctlInstall
+            | commands::xcrun::XcrunSubcommand::SimctlLaunch
+            | commands::xcrun::XcrunSubcommand::SimctlErase
+            | commands::xcrun::XcrunSubcommand::SimctlDelete => {
+                filters::xcrun_simctl::filter_simctl_action(stdout, verbosity)
+            }
             commands::xcrun::XcrunSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
+        CommandFamily::XcResultTool => filters::xcresulttool::filter(stdout, verbosity),
+        CommandFamily::DocC => filters::docc::filter(stdout, verbosity),
         CommandFamily::Swiftlint => filters::swiftlint::filter(stdout, verbosity),
         CommandFamily::Fastlane => filters::fastlane::filter(stdout, verbosity),
         CommandFamily::SwiftFormat => filters::swiftformat::filter(stdout, verbosity),
