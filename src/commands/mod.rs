@@ -1,11 +1,13 @@
 pub mod git;
 pub mod grep;
 pub mod read;
+pub mod swift_build;
 pub mod swift_package;
 pub mod xcodebuild;
 pub mod xcrun;
 
 use git::GitSubcommand;
+use swift_build::SwiftBuildSubcommand;
 use swift_package::SwiftPackageSubcommand;
 use xcodebuild::XcodebuildSubcommand;
 use xcrun::XcrunSubcommand;
@@ -26,6 +28,7 @@ pub enum CommandFamily {
     Swiftlint,
     Fastlane,
     SwiftPackage(SwiftPackageSubcommand),
+    SwiftBuild(SwiftBuildSubcommand),
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -44,6 +47,7 @@ impl CommandFamily {
             CommandFamily::Swiftlint => "swiftlint",
             CommandFamily::Fastlane => "fastlane",
             CommandFamily::SwiftPackage(_) => "swift",
+            CommandFamily::SwiftBuild(_) => "swift",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -71,6 +75,12 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "fastlane" => CommandFamily::Fastlane,
         "swift" if args.get(1).map(|s| s.as_str()) == Some("package") => {
             CommandFamily::SwiftPackage(swift_package::detect_subcommand(args))
+        }
+        "swift"
+            if args.get(1).map(|s| s.as_str()) == Some("build")
+                || args.get(1).map(|s| s.as_str()) == Some("test") =>
+        {
+            CommandFamily::SwiftBuild(swift_build::detect_subcommand(args))
         }
         _ => CommandFamily::Unknown,
     }
@@ -160,7 +170,10 @@ mod tests {
     }
 
     #[test]
-    fn detect_swift_build_is_unknown() {
-        assert_eq!(detect(&args(&["swift", "build"])), CommandFamily::Unknown);
+    fn detect_swift_build_is_swift_build_family() {
+        assert!(matches!(
+            detect(&args(&["swift", "build"])),
+            CommandFamily::SwiftBuild(_)
+        ));
     }
 }

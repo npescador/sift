@@ -200,6 +200,17 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Swiftlint => filters::swiftlint::filter(stdout, verbosity),
         CommandFamily::Fastlane => filters::fastlane::filter(stdout, verbosity),
         CommandFamily::SwiftPackage(_) => filters::swift_package::filter(stdout, verbosity),
+        CommandFamily::SwiftBuild(sub) => match sub {
+            commands::swift_build::SwiftBuildSubcommand::Build => {
+                filters::swift_build::filter(stdout, verbosity)
+            }
+            commands::swift_build::SwiftBuildSubcommand::Test => {
+                filters::swift_test::filter(stdout, verbosity)
+            }
+            commands::swift_build::SwiftBuildSubcommand::Other => {
+                filters::FilterOutput::passthrough(stdout)
+            }
+        },
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }
