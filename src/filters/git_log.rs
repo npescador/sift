@@ -61,6 +61,47 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     }
 }
 
+/// Filter `git log --graph` output.
+///
+/// Strips graph decoration characters (`*`, `|`, `/`, `\`) from line prefixes,
+/// discards lines that are only decorations, then delegates to [`filter`].
+pub fn filter_graph(raw: &str, verbosity: Verbosity) -> FilterOutput {
+    let original_bytes = raw.len();
+
+    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
+        return FilterOutput::passthrough(raw);
+    }
+
+    let stripped = strip_graph_decoration(raw);
+    let inner = filter(&stripped, verbosity);
+
+    FilterOutput {
+        content: inner.content,
+        original_bytes,
+        filtered_bytes: inner.filtered_bytes,
+    }
+}
+
+/// Strip graph decoration prefix characters from each line.
+///
+/// Graph lines consist of `*`, `|`, `/`, `\`, and spaces.
+/// Lines that contain only these characters are dropped (empty after strip).
+/// Content lines have their leading graph prefix removed.
+fn strip_graph_decoration(raw: &str) -> String {
+    let mut out = String::new();
+    for line in raw.lines() {
+        let stripped = line.trim_start_matches(['*', '|', '/', '\\', ' ']);
+        if stripped.is_empty() {
+            // Preserve blank lines — important for multi-line commit parser
+            out.push('\n');
+        } else {
+            out.push_str(stripped);
+            out.push('\n');
+        }
+    }
+    out
+}
+
 // ── Data ──────────────────────────────────────────────────────────────────────
 
 struct Commit {
@@ -321,5 +362,84 @@ Date:   Fri Mar 28 11:00:00 2026 +0100
             compact_date("Fri Mar 28 11:00:00 2025 +0100"),
             "Mar 28 2025"
         );
+    }
+
+    // ── graph tests ────────────────────────────────────────────────────────────
+
+    const GRAPH_ONELINE: &str = "\
+* a3f2b1c (HEAD -> develop) feat: add payment screen
+* 91d3c2b (tag: v0.3.1, main) fix: crash on empty state
+|\\  
+| * deadbeef (feature/x) wip: experiment
+|/  
+* 00abcde chore: update dependencies
+";
+
+    const GRAPH_MULTILINE: &str = "\
+* commit a3f2b1c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3
+| Author: Nacho Pescador <nacho@example.com>
+| Date:   Mon Apr  7 09:15:32 2026 +0200
+| 
+|     feat: add payment screen
+| 
+* commit 91d3c2b1a0f9e8d7c6b5a4f3e2d1c0b9a8f7e6d5
+  Author: Nacho Pescador <nacho@example.com>
+  Date:   Sun Apr  6 15:32:11 2026 +0200
+  
+      fix: crash on empty state
+";
+
+    #[test]
+    fn graph_oneline_strips_decoration_and_passes_through() {
+        let out = filter_graph(GRAPH_ONELINE, Verbosity::Compact);
+        // Graph-only lines (|\, |/, |  ) are dropped
+        assert!(!out.content.contains("|\\"));
+        assert!(!out.content.contains("|/"));
+        // Commit lines are preserved
+        assert!(out.content.contains("feat: add payment screen"));
+        assert!(out.content.contains("fix: crash on empty state"));
+        assert!(out.content.contains("wip: experiment"));
+    }
+
+    #[test]
+    fn graph_multiline_compacts_commits() {
+        let out = filter_graph(GRAPH_MULTILINE, Verbosity::Compact);
+        let lines: Vec<&str> = out.content.lines().filter(|l| !l.is_empty()).collect();
+        assert_eq!(lines.len(), 2);
+        assert!(out.content.contains("feat: add payment screen"));
+        assert!(out.content.contains("fix: crash on empty state"));
+        assert!(!out.content.contains("Author:"));
+    }
+
+    #[test]
+    fn graph_bytes_reduced_vs_original() {
+        let out = filter_graph(GRAPH_MULTILINE, Verbosity::Compact);
+        assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn graph_very_verbose_returns_passthrough() {
+        let out = filter_graph(GRAPH_MULTILINE, Verbosity::VeryVerbose);
+        assert_eq!(out.content, GRAPH_MULTILINE);
+    }
+
+    #[test]
+    fn detect_log_graph_subcommand() {
+        use crate::commands::git::{detect_subcommand, GitSubcommand};
+        let args: Vec<String> = ["git", "log", "--graph", "--oneline"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(detect_subcommand(&args), GitSubcommand::LogGraph);
+    }
+
+    #[test]
+    fn detect_log_without_graph_stays_log() {
+        use crate::commands::git::{detect_subcommand, GitSubcommand};
+        let args: Vec<String> = ["git", "log", "--oneline"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        assert_eq!(detect_subcommand(&args), GitSubcommand::Log);
     }
 }
