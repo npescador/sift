@@ -1,6 +1,7 @@
 pub mod agvtool;
 pub mod codesign;
 pub mod curl;
+pub mod docc;
 pub mod fastlane;
 pub mod git_diff;
 pub mod git_log;
@@ -21,6 +22,7 @@ pub mod xcodebuild_build;
 pub mod xcodebuild_list;
 pub mod xcodebuild_settings;
 pub mod xcodebuild_test;
+pub mod xcresulttool;
 pub mod xcrun_simctl;
 
 /// Verbosity level controlling how much output Sift retains.

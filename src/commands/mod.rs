@@ -40,6 +40,8 @@ pub enum CommandFamily {
     Security,
     Agvtool,
     XcodeSelect,
+    XcResultTool,
+    DocC,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -67,6 +69,8 @@ impl CommandFamily {
             CommandFamily::Security => "security",
             CommandFamily::Agvtool => "agvtool",
             CommandFamily::XcodeSelect => "xcode-select",
+            CommandFamily::XcResultTool => "xcresulttool",
+            CommandFamily::DocC => "docc",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -109,6 +113,8 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "security" => CommandFamily::Security,
         "agvtool" => CommandFamily::Agvtool,
         "xcode-select" => CommandFamily::XcodeSelect,
+        "xcresulttool" => CommandFamily::XcResultTool,
+        "docc" => CommandFamily::DocC,
         _ => CommandFamily::Unknown,
     }
 }
