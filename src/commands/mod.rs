@@ -5,6 +5,7 @@ pub mod pod;
 pub mod read;
 pub mod swift_build;
 pub mod swift_package;
+pub mod tuist;
 pub mod xcodebuild;
 pub mod xcrun;
 
@@ -30,9 +31,11 @@ pub enum CommandFamily {
     Xcrun(XcrunSubcommand),
     Swiftlint,
     Fastlane,
+    SwiftFormat,
     SwiftPackage(SwiftPackageSubcommand),
     SwiftBuild(SwiftBuildSubcommand),
     Pod(pod::PodSubcommand),
+    Tuist(tuist::TuistSubcommand),
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -51,9 +54,11 @@ impl CommandFamily {
             CommandFamily::Xcrun(_) => "xcrun",
             CommandFamily::Swiftlint => "swiftlint",
             CommandFamily::Fastlane => "fastlane",
+            CommandFamily::SwiftFormat => "swiftformat",
             CommandFamily::SwiftPackage(_) => "swift",
             CommandFamily::SwiftBuild(_) => "swift",
             CommandFamily::Pod(_) => "pod",
+            CommandFamily::Tuist(_) => "tuist",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -90,6 +95,8 @@ pub fn detect(args: &[String]) -> CommandFamily {
             CommandFamily::SwiftBuild(swift_build::detect_subcommand(args))
         }
         "pod" => CommandFamily::Pod(pod::detect_subcommand(args)),
+        "swiftformat" => CommandFamily::SwiftFormat,
+        "tuist" => CommandFamily::Tuist(tuist::detect_subcommand(args)),
         _ => CommandFamily::Unknown,
     }
 }
