@@ -5,6 +5,7 @@ pub mod git_log;
 pub mod git_status;
 pub mod grep;
 pub mod ls_xcode;
+pub mod pod;
 pub mod read;
 pub mod swift_build;
 pub mod swift_package;
