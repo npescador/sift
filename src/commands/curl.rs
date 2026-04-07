@@ -1,4 +1,4 @@
-/// `curl` command family — no subcommands needed.
+//! `curl` command family — no subcommands needed.
 
 #[cfg(test)]
 mod tests {
