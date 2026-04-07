@@ -9,6 +9,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] — 2026-04-07
+
+iOS toolchain expansion. Four new filters covering the remaining high-token commands in a daily iOS/Swift developer workflow.
+
+### Added
+
+**New filters**
+- `fastlane` — compact lane execution summary: lane name, warnings/errors, result + total time; verbose adds step-by-step progression with `(N/M)` tracking; strips timestamps and ANSI codes; ~85% reduction
+- `xcodebuild archive` — `ARCHIVE SUCCEEDED/FAILED` header + scheme/config + archive path (📦) + signing team (🔑) + identity (🔐) + errors grouped by file; verbose adds warning count; ~95% reduction
+- `swift package resolve` / `update` / `show-dependencies` — one line per package (name + version); verbose adds source URL; detects `show-dependencies` dependency tree; ~80% reduction
+- `git log` dynamic year: `compact_date()` now uses `SystemTime` for current year instead of hardcoded 2026
+
+**Command detection**
+- `fastlane` added to `CommandFamily`
+- `xcodebuild archive` added to `XcodebuildSubcommand`
+- `SwiftPackage(SwiftPackageSubcommand)` added to `CommandFamily` — detects `swift package resolve/update/show-dependencies`
+
+**Developer experience**
+- `AGENTS.md` updated with commit message rules (one line, `type: message`, no trailers) and post-merge workflow (checkout develop, pull, delete branch, prune remotes)
+- `AGENTS.md` updated with PR creation reference (labels, milestones, base branch)
+
+### Changed
+- Test count: 109 → 137 (128 unit + 9 integration)
+
+---
+
 ## [0.2.0] — 2026-04-07
 
 iOS developer workflow expansion. Five new filters covering the most token-expensive commands in a daily Xcode/Swift workflow, plus transparent shell hooks for zero-friction adoption.
@@ -81,6 +107,7 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/npescador/sift/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/npescador/sift/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/npescador/sift/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/npescador/sift/releases/tag/v0.1.0
