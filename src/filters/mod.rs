@@ -4,6 +4,7 @@ pub mod git_log;
 pub mod git_status;
 pub mod grep;
 pub mod read;
+pub mod swift_package;
 pub mod swiftlint;
 pub mod xcodebuild_archive;
 pub mod xcodebuild_build;
