@@ -225,10 +225,7 @@ fn is_long_format_line(line: &str) -> bool {
         line.chars().next(),
         Some('d' | '-' | 'l' | 'c' | 'b' | 's' | 'p')
     ) && line.len() > 10
-        && line
-            .chars()
-            .nth(1)
-            .is_some_and(|c| matches!(c, 'r' | '-'))
+        && line.chars().nth(1).is_some_and(|c| matches!(c, 'r' | '-'))
 }
 
 /// Extract the filename from an `ls -l` formatted line.
