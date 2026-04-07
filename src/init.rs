@@ -86,6 +86,7 @@ pub struct InitOptions {
     pub shell: bool,
     pub claude: bool,
     pub copilot: bool,
+    pub xcode_project: bool,
     pub show: bool,
     pub uninstall: bool,
 }
@@ -93,7 +94,7 @@ pub struct InitOptions {
 /// Entry point called from `main.rs`.
 pub fn run(opts: InitOptions) -> Result<()> {
     // Default: if no flag specified, treat as --show
-    if !opts.shell && !opts.claude && !opts.copilot && !opts.uninstall {
+    if !opts.shell && !opts.claude && !opts.copilot && !opts.xcode_project && !opts.uninstall {
         return show_status();
     }
 
@@ -113,6 +114,9 @@ pub fn run(opts: InitOptions) -> Result<()> {
     }
     if opts.copilot {
         install_copilot_instructions()?;
+    }
+    if opts.xcode_project {
+        install_xcode_project_context()?;
     }
 
     Ok(())
@@ -217,7 +221,203 @@ fn install_copilot_instructions() -> Result<()> {
     Ok(())
 }
 
-// ── Uninstall ────────────────────────────────────────────────────────────────
+// ── Xcode project context ────────────────────────────────────────────────────
+
+/// Marker for the xcode-project block in CLAUDE.md.
+const XCODE_BLOCK_START: &str = "<!-- BEGIN sift xcode-project -->";
+const XCODE_BLOCK_END: &str = "<!-- END sift xcode-project -->";
+
+fn install_xcode_project_context() -> Result<()> {
+    let info = detect_xcode_project()?;
+    let block = build_xcode_block(&info);
+
+    let path = PathBuf::from("CLAUDE.md");
+    let current = fs::read_to_string(&path).unwrap_or_default();
+
+    let new_content = if current.contains(XCODE_BLOCK_START) {
+        replace_block(&current, XCODE_BLOCK_START, XCODE_BLOCK_END, &block)
+    } else {
+        format!("{}\n\n{}", current.trim_end_matches('\n'), block)
+    };
+
+    fs::write(&path, new_content).with_context(|| "failed to write CLAUDE.md")?;
+
+    println!("✅ CLAUDE.md updated with Xcode project context");
+    println!();
+    println!("   Project:  {}", info.name);
+    if let Some(ref scheme) = info.default_scheme {
+        println!("   Scheme:   {scheme}");
+    }
+    if !info.targets.is_empty() {
+        println!("   Targets:  {}", info.targets.join(", "));
+    }
+    if let Some(ref dest) = info.simulator_destination {
+        println!("   Dest:     {dest}");
+    }
+    Ok(())
+}
+
+/// Information extracted from the Xcode project.
+#[derive(Debug)]
+struct XcodeProjectInfo {
+    name: String,
+    default_scheme: Option<String>,
+    targets: Vec<String>,
+    simulator_destination: Option<String>,
+}
+
+/// Detect and parse the nearest .xcodeproj / .xcworkspace.
+fn detect_xcode_project() -> Result<XcodeProjectInfo> {
+    let cwd = std::env::current_dir().with_context(|| "cannot read current directory")?;
+
+    // Prefer .xcworkspace (CocoaPods / multi-project setups), then .xcodeproj
+    let workspace = find_extension(&cwd, "xcworkspace");
+    let xcodeproj = find_extension(&cwd, "xcodeproj");
+
+    let project_path = workspace.or(xcodeproj);
+
+    let name = project_path
+        .as_ref()
+        .and_then(|p| p.file_stem())
+        .and_then(|s| s.to_str())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            cwd.file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("MyApp")
+                .to_string()
+        });
+
+    // Try to get schemes and targets from xcodebuild -list
+    let (schemes, targets) = run_xcodebuild_list(&name);
+
+    let default_scheme = schemes.first().cloned().or_else(|| Some(name.clone()));
+
+    // Pick a sensible simulator destination
+    let simulator_destination = pick_simulator_destination();
+
+    Ok(XcodeProjectInfo {
+        name,
+        default_scheme,
+        targets,
+        simulator_destination,
+    })
+}
+
+/// Find the first file with the given extension in `dir`.
+fn find_extension(dir: &Path, ext: &str) -> Option<PathBuf> {
+    fs::read_dir(dir).ok()?.find_map(|entry| {
+        let path = entry.ok()?.path();
+        if path.extension()?.to_str()? == ext {
+            Some(path)
+        } else {
+            None
+        }
+    })
+}
+
+/// Run `xcodebuild -list` and parse schemes and targets.
+/// Returns empty vecs if xcodebuild is unavailable or fails.
+fn run_xcodebuild_list(project_name: &str) -> (Vec<String>, Vec<String>) {
+    let output = std::process::Command::new("xcodebuild")
+        .args(["-list"])
+        .output();
+
+    let stdout = match output {
+        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).to_string(),
+        _ => return (vec![project_name.to_string()], vec![]),
+    };
+
+    let schemes = parse_xcodebuild_list_section(&stdout, "Schemes:");
+    let targets = parse_xcodebuild_list_section(&stdout, "Targets:");
+    (schemes, targets)
+}
+
+/// Parse a section from `xcodebuild -list` output.
+/// Each item is indented with spaces under the section header.
+fn parse_xcodebuild_list_section(output: &str, section: &str) -> Vec<String> {
+    let mut items = Vec::new();
+    let mut in_section = false;
+    for line in output.lines() {
+        if line.trim() == section.trim_end_matches(':') || line.trim_end() == section {
+            in_section = true;
+            continue;
+        }
+        if in_section {
+            let trimmed = line.trim();
+            if trimmed.is_empty() || (!line.starts_with("    ") && !line.starts_with('\t')) {
+                break;
+            }
+            if !trimmed.is_empty() {
+                items.push(trimmed.to_string());
+            }
+        }
+    }
+    items
+}
+
+/// Pick the most relevant simulator destination string.
+fn pick_simulator_destination() -> Option<String> {
+    // Use xcrun simctl list to find a booted iPhone simulator
+    let output = std::process::Command::new("xcrun")
+        .args(["simctl", "list", "devices", "booted"])
+        .output()
+        .ok()?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+    for line in stdout.lines() {
+        if line.contains("iPhone") && line.contains("Booted") {
+            // Extract device name: "    iPhone 16 Pro (UUID) (Booted)"
+            let name = line.trim().split('(').next()?.trim().to_string();
+            if !name.is_empty() {
+                return Some(format!("platform=iOS Simulator,name={name}"));
+            }
+        }
+    }
+
+    // Fallback: generic latest iPhone
+    Some("platform=iOS Simulator,name=iPhone 16 Pro".to_string())
+}
+
+/// Build the CLAUDE.md xcode-project block content.
+fn build_xcode_block(info: &XcodeProjectInfo) -> String {
+    let scheme = info.default_scheme.as_deref().unwrap_or(&info.name);
+    let dest = info
+        .simulator_destination
+        .as_deref()
+        .unwrap_or("platform=iOS Simulator,name=iPhone 16 Pro");
+
+    let targets_line = if info.targets.is_empty() {
+        String::new()
+    } else {
+        format!("\nTargets: {}", info.targets.join(", "))
+    };
+
+    format!(
+        "{XCODE_BLOCK_START}\n\
+         ## Xcode Project: {name}\n\
+         \n\
+         Scheme: `{scheme}`{targets_line}\n\
+         \n\
+         ### Common sift commands for this project\n\
+         \n\
+         ```bash\n\
+         sift xcodebuild build -scheme {scheme} -destination \"{dest}\"\n\
+         sift xcodebuild test  -scheme {scheme} -destination \"{dest}\"\n\
+         sift xcodebuild archive -scheme {scheme}\n\
+         sift xcodebuild -showBuildSettings -scheme {scheme}\n\
+         sift xcrun simctl list\n\
+         sift git status\n\
+         sift git diff\n\
+         sift git log\n\
+         sift swiftlint lint\n\
+         ```\n\
+         \n\
+         Always use `sift` prefix for compact output. Add `-v` for more detail.\n\
+         {XCODE_BLOCK_END}\n",
+        name = info.name,
+    )
+}
 
 fn uninstall_all() -> Result<()> {
     let mut any = false;
@@ -433,5 +633,61 @@ mod tests {
         let without = remove_block(&with_block, BLOCK_START, BLOCK_END);
         assert!(!without.contains(BLOCK_START));
         assert!(without.contains("top"));
+    }
+
+    #[test]
+    fn build_xcode_block_contains_scheme_and_commands() {
+        let info = XcodeProjectInfo {
+            name: "MyApp".to_string(),
+            default_scheme: Some("MyApp".to_string()),
+            targets: vec!["MyApp".to_string(), "MyAppTests".to_string()],
+            simulator_destination: Some("platform=iOS Simulator,name=iPhone 16 Pro".to_string()),
+        };
+        let block = build_xcode_block(&info);
+        assert!(block.contains(XCODE_BLOCK_START));
+        assert!(block.contains(XCODE_BLOCK_END));
+        assert!(block.contains("MyApp"));
+        assert!(block.contains("sift xcodebuild build"));
+        assert!(block.contains("sift xcodebuild test"));
+        assert!(block.contains("iPhone 16 Pro"));
+    }
+
+    #[test]
+    fn parse_xcodebuild_list_section_extracts_items() {
+        let output = "Information about project \"MyApp\":\n\
+            Targets:\n\
+            \tMyApp\n\
+            \tMyAppTests\n\
+            \n\
+            Schemes:\n\
+            \tMyApp\n\
+            \tMyApp-Dev\n";
+        let targets = parse_xcodebuild_list_section(output, "Targets:");
+        let schemes = parse_xcodebuild_list_section(output, "Schemes:");
+        assert_eq!(targets, vec!["MyApp", "MyAppTests"]);
+        assert_eq!(schemes, vec!["MyApp", "MyApp-Dev"]);
+    }
+
+    #[test]
+    fn xcode_block_is_replaceable() {
+        let info = XcodeProjectInfo {
+            name: "TestApp".to_string(),
+            default_scheme: Some("TestApp".to_string()),
+            targets: vec![],
+            simulator_destination: None,
+        };
+        let block = build_xcode_block(&info);
+        let existing = format!("# Existing\n\n{block}");
+        let new_info = XcodeProjectInfo {
+            name: "UpdatedApp".to_string(),
+            default_scheme: Some("UpdatedApp".to_string()),
+            targets: vec![],
+            simulator_destination: None,
+        };
+        let new_block = build_xcode_block(&new_info);
+        let updated = replace_block(&existing, XCODE_BLOCK_START, XCODE_BLOCK_END, &new_block);
+        assert!(updated.contains("UpdatedApp"));
+        assert!(!updated.contains("TestApp"));
+        assert!(updated.contains("# Existing"));
     }
 }

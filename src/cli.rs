@@ -45,6 +45,10 @@ pub enum SiftCommand {
         #[arg(long)]
         copilot: bool,
 
+        /// Auto-detect Xcode project and write project-specific CLAUDE.md context
+        #[arg(long)]
+        xcode_project: bool,
+
         /// Show current installation status
         #[arg(long)]
         show: bool,
