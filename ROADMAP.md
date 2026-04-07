@@ -1,8 +1,135 @@
 # Roadmap
 
-This document tracks Sift's planned milestones. Each milestone represents a coherent set of capabilities that can be released together.
+This document tracks Sift's milestones. Each milestone represents a coherent set of capabilities released together.
 
-For granular progress, see the [GitHub Issues](https://github.com/ipescador/sift/issues) tracker.
+For granular progress, see the [GitHub Issues](https://github.com/npescador/sift/issues) tracker.
+
+---
+
+## v0.1.0 — Foundation ✅ Released
+
+Core infrastructure and basic command filtering support.
+
+- [x] Repository setup and meta-files
+- [x] Rust project scaffold (`sift-cli` crate)
+- [x] CLI entry point with `clap` (subcommands, verbosity flags, `--raw`)
+- [x] Executor layer (subprocess spawn, stdout/stderr/exit-code capture)
+- [x] Command detection and routing (`CommandFamily` enum)
+- [x] `git status` filter — grouped by file state with counts
+- [x] `git diff` filter — per-file stats, hunk header summaries
+- [x] `grep` / `rg` filter — grouped by file, deduplication, result cap
+- [x] `cat` / `read` filter — safe truncation, configurable line ranges
+- [x] Config file support (`~/.config/sift/config.toml`)
+- [x] Tracking abstraction (in-memory, session-scoped)
+- [x] Unit tests for all filters
+- [x] README and documentation
+
+---
+
+## v0.2.0 — Xcode Support ✅ Released
+
+First-class iOS/macOS developer workflow support.
+
+- [x] `xcodebuild build` filter — compiler errors grouped by file, warning count
+- [x] `xcodebuild test` filter — pass/fail counts, failed test names and assertions
+- [x] `xcodebuild -showBuildSettings` filter — 16 high-signal iOS keys from ~400-line output
+- [x] `xcrun simctl list` filter — iOS-only compact view, Booted first
+- [x] `git log` filter — one line per commit: hash · subject · date · author
+- [x] `swiftlint` filter — violations grouped by rule, errors before warnings
+- [x] `sift init` — shell hooks, CLAUDE.md, copilot-instructions.md, uninstall
+
+---
+
+## v0.3.0 — iOS Toolchain Expansion ✅ Released
+
+Wider coverage of the daily iOS/Swift developer workflow.
+
+- [x] `fastlane` filter — lane name, step progression, result + total time
+- [x] `xcodebuild archive` filter — result, signing identity, archive path
+- [x] `swift package resolve/update/show-dependencies` filter
+
+---
+
+## v0.4.0 — Xcode Workflow Polish ✅ Released
+
+Remaining high-value Xcode workflow items.
+
+- [x] `xcodebuild -list` filter — default scheme ★, configurations, target count
+- [x] `xcodebuild build` — linker errors 🔗 and signing errors 🔐 surfaced above compiler errors
+- [x] `git log --graph` — decoration lines stripped, compact log format preserved
+- [x] `ls` / `find` — Xcode-relevant files only; drops `.build/`, `DerivedData/`, `.o`
+- [x] Tee mode — fallback to raw output when filter produces empty result; saves raw to disk
+
+---
+
+## v0.5.0 — iOS/AI Workflow Expansion ✅ Released
+
+Extended command coverage for AI-assisted iOS development workflows. SQLite persistence.
+
+**New command families (13)**
+- [x] `swift build` — compiler errors grouped by file, `BUILD SUCCEEDED/FAILED`
+- [x] `swift test` — pass/fail counts, failed test names and assertions (SPM)
+- [x] `curl` — HTTP status, key headers, body truncated to N lines
+- [x] `pod install` / `pod update` — one pod per line, warnings, result
+- [x] `swiftformat` — files changed, result summary, lint errors
+- [x] `tuist generate/fetch/cache` — targets, dependencies, errors
+- [x] `codesign` — signing status, identifier, team
+- [x] `security find-identity` — valid identities with short hash and name
+- [x] `agvtool` — current/new version number, files updated
+- [x] `xcode-select` — active Xcode version and path
+- [x] `xcrun simctl boot/install/launch/erase/delete` — compact operation result
+- [x] `xcresulttool` — test summary from `.xcresult` bundles
+- [x] `docc convert/preview` — symbols processed, warnings, output path
+
+**Persistent stats (Milestone 4)**
+- [x] SQLite persistence (`rusqlite`) — `~/.local/share/sift/stats.db`
+- [x] `sift stats` — multi-session historical summaries
+- [x] `sift stats --last N` — last N invocations
+- [x] `sift stats --reset` — clear all history
+- [x] `sift stats --json` — export full history as JSON
+- [x] Automatic migration from legacy `stats.toml` on first run
+
+---
+
+## v0.6.0 — JSON Output & Programmatic API 🔮 Planned
+
+Enable machine-readable output for advanced agent integrations.
+
+- [ ] `--json` output mode for all command families
+- [ ] Stable, versioned JSON schema per command family
+- [ ] Programmatic library API (`sift-lib` crate) for embedding in other tools
+
+---
+
+## v0.7.0 — Shell Completions & Polish 🔮 Planned
+
+Quality-of-life improvements for daily use.
+
+- [ ] Shell completion scripts (zsh, bash, fish)
+- [ ] `sift benchmark` command for measuring real-world token savings
+- [ ] Per-command override configuration (`[commands.git]` etc.)
+- [ ] `sift update` — self-update from GitHub releases
+
+---
+
+## v1.0.0 — Stable Release 🔮 Planned
+
+First stable release with full documentation and compatibility guarantees.
+
+- [ ] Stable public API contract
+- [ ] Full documentation coverage
+- [ ] Windows support
+- [ ] Performance benchmarks and regression tests
+
+---
+
+## Non-Goals (V1)
+
+- GUI or web UI
+- Remote or cloud execution
+- Cloud telemetry (all tracking is always local)
+- AI-based summarization (Sift uses rule-based filters by design for predictability)
+
 
 ---
 
