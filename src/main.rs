@@ -40,6 +40,7 @@ fn run() -> Result<i32> {
             shell,
             claude,
             copilot,
+            xcode_project,
             show,
             uninstall,
         } => {
@@ -47,6 +48,7 @@ fn run() -> Result<i32> {
                 shell,
                 claude,
                 copilot,
+                xcode_project,
                 show,
                 uninstall,
             })?;
