@@ -295,3 +295,100 @@ Sift Statistics
 
 **Need full output for a one-off**
 → `sift --raw <command>` or `\<command>` (shell alias bypass).
+
+---
+
+## Contribution & Commit Guidelines
+
+### Commit message format
+
+One line only, in English, using Conventional Commits type prefix:
+
+```
+type: short description
+```
+
+Valid types: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `ci`
+
+Examples:
+```
+feat: add fastlane filter with ~85% reduction
+fix: compact_date uses dynamic year instead of hardcoded value
+chore: bump version to 0.3.0
+```
+
+**Rules:**
+- Single line — no multi-line body in commit message
+- No `Co-authored-by` trailers
+- No attribution lines of any kind
+- Lowercase description after the colon
+
+---
+
+## PR Creation Reference
+
+When a feature branch is ready, provide this metadata to the developer:
+
+| Field | Value |
+|---|---|
+| **Base branch** | `develop` (features) · `main` (releases only) |
+| **Milestone** | Match the target version (see below) |
+| **Labels** | See tables below |
+
+### Milestones
+
+| # | Title | Scope |
+|---|---|---|
+| 1 | `v0.1.0 — Foundation` | MVP core |
+| 2 | `v0.2.0 — Xcode Support` | iOS/Xcode filters |
+| 3 | `v0.3.0 — Shell Integration` | fastlane, swift package, archive, init improvements |
+| 4 | `v1.0.0 — Stable Release` | Stable, full docs |
+
+### Labels by type
+
+| Label | When to use |
+|---|---|
+| `enhancement` | New filter or feature |
+| `bug` | Fix to existing behaviour |
+| `fix` | Fix (alternative) |
+| `refactor` | Code restructure, no behaviour change |
+| `test` | Test additions or fixes |
+| `chore` | CI, tooling, version bumps |
+| `documentation` | AGENTS.md, README, CHANGELOG only |
+| `ci` | GitHub Actions changes |
+
+### Labels by module
+
+| Label | When to use |
+|---|---|
+| `mod: filters` | Changes in `src/filters/` |
+| `mod: executor` | Changes in `src/executor.rs` |
+| `mod: cli` | Changes in `src/cli.rs` |
+| `mod: config` | Changes in `src/config.rs` |
+| `mod: tracking` | Changes in `src/tracking.rs` |
+
+### Labels by command family
+
+| Label | When to use |
+|---|---|
+| `cmd: git` | git-related filters |
+| `cmd: xcodebuild` | xcodebuild filters |
+| `cmd: grep` | grep/rg filter |
+| `cmd: read` | cat/head/tail filter |
+
+> For a new command family not in the list (e.g. fastlane, swiftlint), use `enhancement` + `mod: filters`.
+
+---
+
+## Post-merge Workflow
+
+When the developer confirms a PR is merged, always execute these steps immediately:
+
+```bash
+git checkout develop
+git pull origin develop
+git branch -D <feature-branch>
+git remote prune origin
+```
+
+Also delete any other stale local branches that no longer exist on origin.
