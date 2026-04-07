@@ -20,6 +20,7 @@ pub enum CommandFamily {
     Xcodebuild(XcodebuildSubcommand),
     Xcrun(XcrunSubcommand),
     Swiftlint,
+    Fastlane,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -34,6 +35,7 @@ impl CommandFamily {
             CommandFamily::Xcodebuild(_) => "xcodebuild",
             CommandFamily::Xcrun(_) => "xcrun",
             CommandFamily::Swiftlint => "swiftlint",
+            CommandFamily::Fastlane => "fastlane",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -56,6 +58,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "xcodebuild" => CommandFamily::Xcodebuild(xcodebuild::detect_subcommand(args)),
         "xcrun" => CommandFamily::Xcrun(xcrun::detect_subcommand(args)),
         "swiftlint" => CommandFamily::Swiftlint,
+        "fastlane" => CommandFamily::Fastlane,
         _ => CommandFamily::Unknown,
     }
 }
@@ -119,6 +122,15 @@ mod tests {
             CommandFamily::Xcodebuild(xcodebuild::XcodebuildSubcommand::Build).name(),
             "xcodebuild"
         );
+        assert_eq!(CommandFamily::Fastlane.name(), "fastlane");
         assert_eq!(CommandFamily::Unknown.name(), "unknown");
+    }
+
+    #[test]
+    fn detect_fastlane_returns_fastlane_family() {
+        assert_eq!(
+            detect(&args(&["fastlane", "beta"])),
+            CommandFamily::Fastlane
+        );
     }
 }

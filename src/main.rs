@@ -163,6 +163,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             commands::xcrun::XcrunSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
         CommandFamily::Swiftlint => filters::swiftlint::filter(stdout, verbosity),
+        CommandFamily::Fastlane => filters::fastlane::filter(stdout, verbosity),
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }
