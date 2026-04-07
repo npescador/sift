@@ -157,6 +157,9 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             commands::xcodebuild::XcodebuildSubcommand::Archive => {
                 filters::xcodebuild_archive::filter(stdout, verbosity)
             }
+            commands::xcodebuild::XcodebuildSubcommand::List => {
+                filters::xcodebuild_list::filter(stdout, verbosity)
+            }
             commands::xcodebuild::XcodebuildSubcommand::Other => {
                 filters::FilterOutput::passthrough(stdout)
             }
