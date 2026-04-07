@@ -11,6 +11,7 @@ pub struct Config {
     /// Phase 10: used by tracking::Tracker to decide whether to record metrics.
     #[allow(dead_code)]
     pub tracking: TrackingConfig,
+    pub tee: TeeConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -40,6 +41,20 @@ impl Default for DefaultsConfig {
 }
 
 impl Default for TrackingConfig {
+    fn default() -> Self {
+        Self { enabled: true }
+    }
+}
+
+/// Configuration for tee mode — saving raw output when a filter produces nothing.
+#[derive(Debug, Deserialize)]
+#[serde(default)]
+pub struct TeeConfig {
+    /// When true, save raw output to disk if the filter produces empty content.
+    pub enabled: bool,
+}
+
+impl Default for TeeConfig {
     fn default() -> Self {
         Self { enabled: true }
     }
@@ -165,5 +180,18 @@ mod tests {
         let toml_str = "[tracking]\nenabled = false\n";
         let cfg: Config = toml::from_str(toml_str).unwrap();
         assert!(!cfg.tracking.enabled);
+    }
+
+    #[test]
+    fn tee_enabled_by_default() {
+        let cfg: Config = toml::from_str("").unwrap();
+        assert!(cfg.tee.enabled);
+    }
+
+    #[test]
+    fn config_from_toml_parses_tee_disabled() {
+        let toml_str = "[tee]\nenabled = false\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        assert!(!cfg.tee.enabled);
     }
 }

@@ -5,6 +5,7 @@ mod error;
 mod executor;
 mod filters;
 mod init;
+mod tee;
 mod tracking;
 
 use anyhow::Result;
@@ -114,8 +115,29 @@ fn run() -> Result<i32> {
                 ));
             }
 
-            if !filter_output.content.is_empty() {
-                print!("{}", filter_output.content);
+            // Tee mode: if the filter produced nothing from non-empty input,
+            // fall back to raw output and optionally save the raw to disk.
+            let content = if filter_output.content.is_empty()
+                && !output.stdout.trim().is_empty()
+                && verbosity != filters::Verbosity::Raw
+                && !matches!(commands::detect(&args), commands::CommandFamily::Unknown)
+            {
+                if cfg.tee.enabled {
+                    let cmd_label = args.join(" ");
+                    if let Some(path) = tee::save_raw(&cmd_label, &output.stdout) {
+                        eprintln!(
+                            "[sift] filter produced empty output — raw saved to {}",
+                            path.display()
+                        );
+                    }
+                }
+                &output.stdout
+            } else {
+                &filter_output.content
+            };
+
+            if !content.is_empty() {
+                print!("{content}");
             }
             if !output.stderr.is_empty() {
                 eprint!("{}", output.stderr);

@@ -9,6 +9,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] — 2026-04-07
+
+Xcode workflow polish. Five new capabilities covering the remaining high-value items in the v0.4.0 roadmap.
+
+### Added
+
+**New filters**
+- `xcodebuild -list` — project name, schemes (★ default), configurations, target count; verbose lists all targets; ~60% reduction
+- `xcodebuild build` improvements — linker errors (🔗 `ld:`, `Undefined symbols`, `clang: error: linker`) and signing/provisioning errors (🔐) detected and surfaced above compiler errors; ordering: signing → linker → compiler
+- `git log --graph` — detects `--graph` flag, strips decoration lines (`*`, `|`, `/`, `\`), delegates to existing compact log format; works for both `--oneline --graph` and multi-line `--graph`
+- `ls` / `find` for Xcode — filters output to Xcode-relevant files (`.swift`, `.xcodeproj`, `.plist`, `Package.swift`, etc.); drops `.build/`, `DerivedData/`, `.o`, `.a`, `.DS_Store`; directories always preserved
+
+**Tee mode**
+- When a filter produces empty output from non-empty input (possible false negative), Sift falls back to raw output and saves the raw to `~/.local/share/sift/raw/<timestamp>-<cmd>.txt`
+- Warning printed to stderr: `[sift] filter produced empty output — raw saved to <path>`
+- Configurable via `[tee] enabled = true/false` in `~/.config/sift/config.toml`
+
+**Command detection**
+- `XcodebuildSubcommand::List` added for `-list` flag
+- `GitSubcommand::LogGraph` added — activated when `--graph` appears anywhere in args
+- `CommandFamily::Ls` — detects `ls`, `eza`, `exa`
+- `CommandFamily::Find` — detects `find`
+
+---
+
 ## [0.3.0] — 2026-04-07
 
 iOS toolchain expansion. Four new filters covering the remaining high-token commands in a daily iOS/Swift developer workflow.
