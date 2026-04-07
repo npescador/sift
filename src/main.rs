@@ -55,9 +55,30 @@ fn run() -> Result<i32> {
             })?;
             Ok(0)
         }
-        cli::SiftCommand::Stats { all: _ } => {
-            let stats = tracking::StatsFile::load();
-            let summary = stats.summary();
+        cli::SiftCommand::Stats {
+            all: _,
+            reset,
+            json,
+            last,
+        } => {
+            if reset {
+                if tracking::StatsFile::reset() {
+                    println!("Sift statistics cleared.");
+                } else {
+                    eprintln!("[sift] failed to reset statistics");
+                }
+                return Ok(0);
+            }
+
+            let summary = match last {
+                Some(n) => tracking::StatsFile::summary_last(n),
+                None => tracking::StatsFile::summary(),
+            };
+
+            if json {
+                println!("{}", tracking::StatsFile::to_json());
+                return Ok(0);
+            }
 
             if summary.total == 0 {
                 println!("No sift invocations recorded yet.");
