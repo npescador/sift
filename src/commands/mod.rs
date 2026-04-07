@@ -76,8 +76,9 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "swift" if args.get(1).map(|s| s.as_str()) == Some("package") => {
             CommandFamily::SwiftPackage(swift_package::detect_subcommand(args))
         }
-        "swift" if args.get(1).map(|s| s.as_str()) == Some("build")
-            || args.get(1).map(|s| s.as_str()) == Some("test") =>
+        "swift"
+            if args.get(1).map(|s| s.as_str()) == Some("build")
+                || args.get(1).map(|s| s.as_str()) == Some("test") =>
         {
             CommandFamily::SwiftBuild(swift_build::detect_subcommand(args))
         }
