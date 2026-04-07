@@ -6,6 +6,7 @@
 pub enum XcodebuildSubcommand {
     Build,
     Test,
+    ShowBuildSettings,
     /// Any other xcodebuild invocation — passed through unfiltered.
     Other,
 }
@@ -15,6 +16,7 @@ pub fn detect_subcommand(args: &[String]) -> XcodebuildSubcommand {
         match arg.as_str() {
             "build" | "build-for-testing" => return XcodebuildSubcommand::Build,
             "test" | "test-without-building" => return XcodebuildSubcommand::Test,
+            "-showBuildSettings" => return XcodebuildSubcommand::ShowBuildSettings,
             _ => {}
         }
     }
