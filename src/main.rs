@@ -137,6 +137,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Git(sub) => match sub {
             commands::git::GitSubcommand::Status => filters::git_status::filter(stdout, verbosity),
             commands::git::GitSubcommand::Diff => filters::git_diff::filter(stdout, verbosity),
+            commands::git::GitSubcommand::Log => filters::git_log::filter(stdout, verbosity),
             commands::git::GitSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
         CommandFamily::Grep => filters::grep::filter(stdout, verbosity),
