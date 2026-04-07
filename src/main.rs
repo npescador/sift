@@ -4,6 +4,7 @@ mod config;
 mod error;
 mod executor;
 mod filters;
+mod init;
 mod tracking;
 
 use anyhow::Result;
@@ -35,6 +36,22 @@ fn run() -> Result<i32> {
     };
 
     match cli.command {
+        cli::SiftCommand::Init {
+            shell,
+            claude,
+            copilot,
+            show,
+            uninstall,
+        } => {
+            init::run(init::InitOptions {
+                shell,
+                claude,
+                copilot,
+                show,
+                uninstall,
+            })?;
+            Ok(0)
+        }
         cli::SiftCommand::Stats { all: _ } => {
             let stats = tracking::StatsFile::load();
             let summary = stats.summary();
@@ -120,6 +137,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Git(sub) => match sub {
             commands::git::GitSubcommand::Status => filters::git_status::filter(stdout, verbosity),
             commands::git::GitSubcommand::Diff => filters::git_diff::filter(stdout, verbosity),
+            commands::git::GitSubcommand::Log => filters::git_log::filter(stdout, verbosity),
             commands::git::GitSubcommand::Other => filters::FilterOutput::passthrough(stdout),
         },
         CommandFamily::Grep => filters::grep::filter(stdout, verbosity),
@@ -131,10 +149,20 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
             commands::xcodebuild::XcodebuildSubcommand::Test => {
                 filters::xcodebuild_test::filter(stdout, verbosity)
             }
+            commands::xcodebuild::XcodebuildSubcommand::ShowBuildSettings => {
+                filters::xcodebuild_settings::filter(stdout, verbosity)
+            }
             commands::xcodebuild::XcodebuildSubcommand::Other => {
                 filters::FilterOutput::passthrough(stdout)
             }
         },
+        CommandFamily::Xcrun(sub) => match sub {
+            commands::xcrun::XcrunSubcommand::SimctlList => {
+                filters::xcrun_simctl::filter(stdout, verbosity)
+            }
+            commands::xcrun::XcrunSubcommand::Other => filters::FilterOutput::passthrough(stdout),
+        },
+        CommandFamily::Swiftlint => filters::swiftlint::filter(stdout, verbosity),
         CommandFamily::Unknown => filters::FilterOutput::passthrough(stdout),
     }
 }

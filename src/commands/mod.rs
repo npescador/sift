@@ -2,9 +2,11 @@ pub mod git;
 pub mod grep;
 pub mod read;
 pub mod xcodebuild;
+pub mod xcrun;
 
 use git::GitSubcommand;
 use xcodebuild::XcodebuildSubcommand;
+use xcrun::XcrunSubcommand;
 
 /// The family of the command being proxied.
 ///
@@ -16,6 +18,8 @@ pub enum CommandFamily {
     Grep,
     Read,
     Xcodebuild(XcodebuildSubcommand),
+    Xcrun(XcrunSubcommand),
+    Swiftlint,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -28,6 +32,8 @@ impl CommandFamily {
             CommandFamily::Grep => "grep",
             CommandFamily::Read => "read",
             CommandFamily::Xcodebuild(_) => "xcodebuild",
+            CommandFamily::Xcrun(_) => "xcrun",
+            CommandFamily::Swiftlint => "swiftlint",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -48,6 +54,8 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "grep" | "rg" | "ripgrep" => CommandFamily::Grep,
         "cat" | "less" | "head" | "tail" => CommandFamily::Read,
         "xcodebuild" => CommandFamily::Xcodebuild(xcodebuild::detect_subcommand(args)),
+        "xcrun" => CommandFamily::Xcrun(xcrun::detect_subcommand(args)),
+        "swiftlint" => CommandFamily::Swiftlint,
         _ => CommandFamily::Unknown,
     }
 }
