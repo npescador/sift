@@ -1,3 +1,5 @@
+pub mod agvtool;
+pub mod codesign;
 pub mod curl;
 pub mod fastlane;
 pub mod git_diff;
@@ -13,6 +15,7 @@ pub mod swift_test;
 pub mod swiftformat;
 pub mod swiftlint;
 pub mod tuist;
+pub mod xcode_select;
 pub mod xcodebuild_archive;
 pub mod xcodebuild_build;
 pub mod xcodebuild_list;

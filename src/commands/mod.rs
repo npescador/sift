@@ -36,6 +36,10 @@ pub enum CommandFamily {
     SwiftBuild(SwiftBuildSubcommand),
     Pod(pod::PodSubcommand),
     Tuist(tuist::TuistSubcommand),
+    Codesign,
+    Security,
+    Agvtool,
+    XcodeSelect,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -59,6 +63,10 @@ impl CommandFamily {
             CommandFamily::SwiftBuild(_) => "swift",
             CommandFamily::Pod(_) => "pod",
             CommandFamily::Tuist(_) => "tuist",
+            CommandFamily::Codesign => "codesign",
+            CommandFamily::Security => "security",
+            CommandFamily::Agvtool => "agvtool",
+            CommandFamily::XcodeSelect => "xcode-select",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -97,6 +105,10 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "pod" => CommandFamily::Pod(pod::detect_subcommand(args)),
         "swiftformat" => CommandFamily::SwiftFormat,
         "tuist" => CommandFamily::Tuist(tuist::detect_subcommand(args)),
+        "codesign" => CommandFamily::Codesign,
+        "security" => CommandFamily::Security,
+        "agvtool" => CommandFamily::Agvtool,
+        "xcode-select" => CommandFamily::XcodeSelect,
         _ => CommandFamily::Unknown,
     }
 }

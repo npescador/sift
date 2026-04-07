@@ -204,6 +204,10 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::SwiftPackage(_) => filters::swift_package::filter(stdout, verbosity),
         CommandFamily::Pod(_) => filters::pod::filter(stdout, verbosity),
         CommandFamily::Tuist(_) => filters::tuist::filter(stdout, verbosity),
+        CommandFamily::Codesign => filters::codesign::filter(stdout, verbosity),
+        CommandFamily::Security => filters::codesign::filter_security(stdout, verbosity),
+        CommandFamily::Agvtool => filters::agvtool::filter(stdout, verbosity),
+        CommandFamily::XcodeSelect => filters::xcode_select::filter(stdout, verbosity),
         CommandFamily::SwiftBuild(sub) => match sub {
             commands::swift_build::SwiftBuildSubcommand::Build => {
                 filters::swift_build::filter(stdout, verbosity)
