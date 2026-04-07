@@ -147,6 +147,8 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         },
         CommandFamily::Grep => filters::grep::filter(stdout, verbosity),
         CommandFamily::Read => filters::read::filter(stdout, verbosity),
+        CommandFamily::Ls => filters::ls_xcode::filter_ls(stdout, verbosity),
+        CommandFamily::Find => filters::ls_xcode::filter_find(stdout, verbosity),
         CommandFamily::Xcodebuild(sub) => match sub {
             commands::xcodebuild::XcodebuildSubcommand::Build => {
                 filters::xcodebuild_build::filter(stdout, verbosity)
