@@ -1,6 +1,7 @@
 pub mod curl;
 pub mod git;
 pub mod grep;
+pub mod pod;
 pub mod read;
 pub mod swift_build;
 pub mod swift_package;
@@ -31,6 +32,7 @@ pub enum CommandFamily {
     Fastlane,
     SwiftPackage(SwiftPackageSubcommand),
     SwiftBuild(SwiftBuildSubcommand),
+    Pod(pod::PodSubcommand),
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -51,6 +53,7 @@ impl CommandFamily {
             CommandFamily::Fastlane => "fastlane",
             CommandFamily::SwiftPackage(_) => "swift",
             CommandFamily::SwiftBuild(_) => "swift",
+            CommandFamily::Pod(_) => "pod",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -86,6 +89,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         {
             CommandFamily::SwiftBuild(swift_build::detect_subcommand(args))
         }
+        "pod" => CommandFamily::Pod(pod::detect_subcommand(args)),
         _ => CommandFamily::Unknown,
     }
 }
