@@ -143,11 +143,13 @@ All three must pass before a PR will be reviewed.
 
 ## Adding a New Command Filter
 
-1. Add the command family to `CommandFamily` enum in `src/commands/mod.rs`
-2. Create `src/filters/<family>.rs` with a `filter(raw: &str, verbosity: Verbosity) -> FilterOutput` function
-3. Register the filter in the routing table in `src/filters/mod.rs`
-4. Add unit tests in the same file using inline test data
-5. Update the command table in `README.md`
+1. Add the command family to `CommandFamily` enum in `src/commands/mod.rs` and update `detect()` and `name()`
+2. If the command has subcommands, create `src/commands/<family>.rs` with a `detect_subcommand` function
+3. Create `src/filters/<family>.rs` with a `filter(raw: &str, verbosity: Verbosity) -> FilterOutput` function
+4. Declare the module in `src/filters/mod.rs` (`pub mod <family>;`)
+5. Add a dispatch arm in `apply_filter()` in `src/main.rs`
+6. Add unit tests in the filter file using inline test fixtures
+7. Update the command table in `README.md`
 
 ---
 
