@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] — 2026-04-07
+
+iOS developer workflow expansion. Five new filters covering the most token-expensive commands in a daily Xcode/Swift workflow, plus transparent shell hooks for zero-friction adoption.
+
+### Added
+
+**Shell hooks & AI agent integration**
+- `sift init --shell` — injects idempotent marker-based hook functions into `~/.zshrc` / `~/.bashrc`, wrapping `git`, `xcodebuild`, `xcrun`, and `swiftlint` so all invocations are auto-filtered without typing `sift`
+- `sift init --claude` — creates / updates `CLAUDE.md` with sift usage instructions for Claude Code
+- `sift init --copilot` — creates / updates `.github/copilot-instructions.md` for GitHub Copilot
+- `sift init --show` — displays installation status for all three integration targets
+- `sift init --uninstall` — removes all sift-managed blocks from rc file and instruction files
+
+**New filters**
+- `xcrun simctl list` — iOS-only compact view (Booted first, short UDID, `3rd gen` shortening); ~92% reduction vs full output
+- `xcodebuild -showBuildSettings` — extracts 16 high-signal iOS keys (bundle ID, Swift version, deployment target, signing, SDK, team…) from ~400-line output; ~95% reduction
+- `git log` — one line per commit: `SHORT_HASH  subject  (date)  author`; verbose adds full hash + body preview; `--oneline` input passes through unchanged
+- `swiftlint` / `swiftlint lint` — violations grouped by rule name, errors before warnings, count per rule; clean run shows `✓` summary; verbose adds top-3 file locations per rule
+
+**Command detection**
+- `xcrun` family added to `CommandFamily` with `SimctlList` / `Other` subcommands
+- `swiftlint` added as a top-level `CommandFamily` variant
+- `git log` added to `GitSubcommand`
+- `xcodebuild -showBuildSettings` added to `XcodebuildSubcommand`
+
+### Changed
+- `CommandFamily::name()` extended with `"xcrun"` and `"swiftlint"` for tracking
+- Test count: 50 → 97 (88 unit + 9 integration)
+
+---
+
 ## [0.1.0] — 2026-04-06
 
 First MVP release. All core command filters, config file support, and persistent tracking are implemented.
@@ -50,5 +81,6 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/npescador/sift/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/npescador/sift/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/npescador/sift/releases/tag/v0.1.0
