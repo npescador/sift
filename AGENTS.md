@@ -295,3 +295,30 @@ Sift Statistics
 
 **Need full output for a one-off**
 → `sift --raw <command>` or `\<command>` (shell alias bypass).
+
+---
+
+## Contribution & Commit Guidelines
+
+### Commit message format
+
+One line only, in English, using Conventional Commits type prefix:
+
+```
+type: short description
+```
+
+Valid types: `feat`, `fix`, `refactor`, `test`, `chore`, `docs`, `ci`
+
+Examples:
+```
+feat: add fastlane filter with ~85% reduction
+fix: compact_date uses dynamic year instead of hardcoded value
+chore: bump version to 0.3.0
+```
+
+**Rules:**
+- Single line — no multi-line body in commit message
+- No `Co-authored-by` trailers
+- No attribution lines of any kind
+- Lowercase description after the colon

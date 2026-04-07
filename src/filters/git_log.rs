@@ -177,6 +177,15 @@ fn first_name(author: &str) -> String {
 ///
 /// Git default date: `Mon Apr  7 09:15:32 2026 +0200`
 /// Returns: `Apr  7` (current year assumed) or `Apr  7 2025` if year differs.
+fn current_year() -> u32 {
+    // Approximate current year from UNIX timestamp (±1 day error near New Year — acceptable)
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    1970 + (secs / 31_557_600) as u32 // 365.25 days/year
+}
+
 fn compact_date(date: &str) -> String {
     // Format: "Day Mon  D HH:MM:SS YYYY +TZTZ"
     let parts: Vec<&str> = date.split_whitespace().collect();
@@ -185,8 +194,8 @@ fn compact_date(date: &str) -> String {
         let month = parts[1];
         let day = parts[2];
         let year = parts[4];
-        // Include year only for past years (hardcode current as 2026 is fine; compare string)
-        if year == "2026" {
+        let this_year = current_year().to_string();
+        if year == this_year {
             return format!("{month} {day:>2}");
         }
         return format!("{month} {day:>2} {year}");
@@ -305,7 +314,9 @@ Date:   Fri Mar 28 11:00:00 2026 +0100
 
     #[test]
     fn compact_date_formats_correctly() {
-        assert_eq!(compact_date("Mon Apr  7 09:15:32 2026 +0200"), "Apr  7");
+        let this_year = current_year().to_string();
+        let date_this_year = format!("Mon Apr  7 09:15:32 {this_year} +0200");
+        assert_eq!(compact_date(&date_this_year), "Apr  7");
         assert_eq!(
             compact_date("Fri Mar 28 11:00:00 2025 +0100"),
             "Mar 28 2025"
