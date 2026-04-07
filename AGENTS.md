@@ -377,3 +377,18 @@ When a feature branch is ready, provide this metadata to the developer:
 | `cmd: read` | cat/head/tail filter |
 
 > For a new command family not in the list (e.g. fastlane, swiftlint), use `enhancement` + `mod: filters`.
+
+---
+
+## Post-merge Workflow
+
+When the developer confirms a PR is merged, always execute these steps immediately:
+
+```bash
+git checkout develop
+git pull origin develop
+git branch -D <feature-branch>
+git remote prune origin
+```
+
+Also delete any other stale local branches that no longer exist on origin.
