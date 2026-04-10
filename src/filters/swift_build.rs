@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::filters::types::{Diagnostic, Severity, SwiftBuildResult};
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Filter `swift build` output (SPM).
@@ -15,8 +16,22 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
+    let content = render(&result, verbosity);
+    let filtered_bytes = content.len();
+    let structured = serde_json::to_value(&result).ok();
+    FilterOutput {
+        content,
+        original_bytes,
+        filtered_bytes,
+        structured,
+    }
+}
+
+/// Parse raw `swift build` output into a structured result.
+pub fn parse(raw: &str) -> SwiftBuildResult {
     let mut errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut warnings: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut warnings_map: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut build_failed = false;
     let mut build_complete = false;
 
@@ -26,7 +41,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             errors.entry(file).or_default().push(message);
         } else if line.contains(": warning:") {
             let (file, message) = split_diagnostic(line);
-            warnings.entry(file).or_default().push(message);
+            warnings_map.entry(file).or_default().push(message);
         } else if line.contains("** BUILD FAILED **") || line.trim() == "build: ** BUILD FAILED **"
         {
             build_failed = true;
@@ -35,37 +50,76 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    let error_count: usize = errors.values().map(|v| v.len()).sum();
-    let warning_count: usize = warnings.values().map(|v| v.len()).sum();
+    let warning_count: usize = warnings_map.values().map(|v| v.len()).sum();
 
-    if error_count == 0 && (build_complete || !build_failed) {
-        let content = if warning_count == 0 {
+    // Flatten into Diagnostic vecs
+    let error_diags: Vec<Diagnostic> = errors
+        .into_iter()
+        .flat_map(|(file, msgs)| {
+            msgs.into_iter().map(move |msg| Diagnostic {
+                file: file.clone(),
+                line: None,
+                column: None,
+                severity: Severity::Error,
+                message: msg,
+            })
+        })
+        .collect();
+
+    let warning_diags: Vec<Diagnostic> = warnings_map
+        .into_iter()
+        .flat_map(|(file, msgs)| {
+            msgs.into_iter().map(move |msg| Diagnostic {
+                file: file.clone(),
+                line: None,
+                column: None,
+                severity: Severity::Warning,
+                message: msg,
+            })
+        })
+        .collect();
+
+    SwiftBuildResult {
+        succeeded: !build_failed && (build_complete || error_diags.is_empty()),
+        errors: error_diags,
+        warning_count,
+        warnings: warning_diags,
+    }
+}
+
+/// Render the structured result as human-readable text.
+fn render(result: &SwiftBuildResult, verbosity: Verbosity) -> String {
+    let error_count = result.errors.len();
+
+    if error_count == 0 && result.succeeded {
+        return if result.warning_count == 0 {
             "\x1b[32mBUILD SUCCEEDED\x1b[0m ✓\n".to_string()
         } else {
             format!(
-                "\x1b[32mBUILD SUCCEEDED\x1b[0m ✓  ({warning_count} warning{})\n",
-                if warning_count == 1 { "" } else { "s" }
+                "\x1b[32mBUILD SUCCEEDED\x1b[0m ✓  ({} warning{})\n",
+                result.warning_count,
+                if result.warning_count == 1 { "" } else { "s" }
             )
-        };
-        let filtered_bytes = content.len();
-        return FilterOutput {
-            content,
-            original_bytes,
-            filtered_bytes,
         };
     }
 
     let mut out = String::new();
 
     out.push_str(&format!(
-        "\x1b[31mBUILD FAILED\x1b[0m — {error_count} error{}, {warning_count} warning{}\n",
+        "\x1b[31mBUILD FAILED\x1b[0m — {error_count} error{}, {} warning{}\n",
         if error_count == 1 { "" } else { "s" },
-        if warning_count == 1 { "" } else { "s" },
+        result.warning_count,
+        if result.warning_count == 1 { "" } else { "s" },
     ));
 
-    if !errors.is_empty() {
+    // Re-group errors by file for display
+    let mut by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for diag in &result.errors {
+        by_file.entry(&diag.file).or_default().push(&diag.message);
+    }
+    if !by_file.is_empty() {
         out.push('\n');
-        for (file, messages) in &errors {
+        for (file, messages) in &by_file {
             out.push_str(&format!("\x1b[1m{file}\x1b[0m\n"));
             for msg in messages.iter().take(3) {
                 out.push_str(&format!("  \x1b[31merror:\x1b[0m {msg}\n"));
@@ -76,25 +130,29 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    if verbosity == Verbosity::Verbose && !warnings.is_empty() {
-        out.push('\n');
-        for (file, messages) in &warnings {
-            out.push_str(&format!("\x1b[1m{file}\x1b[0m\n"));
-            for msg in messages.iter().take(3) {
-                out.push_str(&format!("  \x1b[33mwarning:\x1b[0m {msg}\n"));
-            }
-            if messages.len() > 3 {
-                out.push_str(&format!("  … and {} more\n", messages.len() - 3));
+    if verbosity == Verbosity::Verbose {
+        let mut warn_by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        for diag in &result.warnings {
+            warn_by_file
+                .entry(&diag.file)
+                .or_default()
+                .push(&diag.message);
+        }
+        if !warn_by_file.is_empty() {
+            out.push('\n');
+            for (file, messages) in &warn_by_file {
+                out.push_str(&format!("\x1b[1m{file}\x1b[0m\n"));
+                for msg in messages.iter().take(3) {
+                    out.push_str(&format!("  \x1b[33mwarning:\x1b[0m {msg}\n"));
+                }
+                if messages.len() > 3 {
+                    out.push_str(&format!("  … and {} more\n", messages.len() - 3));
+                }
             }
         }
     }
 
-    let filtered_bytes = out.len();
-    FilterOutput {
-        content: out,
-        original_bytes,
-        filtered_bytes,
-    }
+    out
 }
 
 /// Split a compiler diagnostic line into `(short_file, line_msg)`.
@@ -151,11 +209,7 @@ fn format_loc(loc: &str) -> String {
 }
 
 fn short_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 #[cfg(test)]

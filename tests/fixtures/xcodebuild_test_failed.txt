@@ -1,0 +1,6 @@
+Test Suite 'MyAppTests' started at 2026-04-06 10:00:00.000
+Test Case '-[MyAppTests testLogin]' passed (0.123 seconds)
+Test Case '-[MyAppTests testPayment]' failed (0.456 seconds)
+    /Users/dev/MyAppTests/PaymentTests.swift:55: error: XCTAssertEqual failed: ("200") is not equal to ("401")
+Test Case '-[MyAppTests testLogout]' passed (0.050 seconds)
+** TEST FAILED **

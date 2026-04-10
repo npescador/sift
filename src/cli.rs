@@ -17,6 +17,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub raw: bool,
 
+    /// Output structured JSON instead of human-readable text
+    #[arg(long, global = true)]
+    pub json: bool,
+
     #[command(subcommand)]
     pub command: SiftCommand,
 }
@@ -48,6 +52,11 @@ pub enum SiftCommand {
         /// like git, xcodebuild, xcrun, and swiftlint are auto-filtered
         #[arg(long)]
         shell: bool,
+
+        /// Comma-separated list of commands to wrap (default: all).
+        /// Supported: git, xcodebuild, xcrun, swiftlint
+        #[arg(long, value_name = "CMDS")]
+        commands: Option<String>,
 
         /// Create/update CLAUDE.md with sift usage instructions
         #[arg(long)]

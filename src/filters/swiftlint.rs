@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::filters::types::{Severity, SwiftlintResult, SwiftlintRuleGroup};
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Filter `swiftlint` / `swiftlint lint` output.
@@ -19,151 +20,36 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let violations = parse_violations(raw);
-
-    if violations.is_empty() {
-        // No violations found — show the summary line if present, else passthrough
-        let summary = extract_summary(raw);
-        if let Some(s) = summary {
-            let content = format!("\x1b[32m✓\x1b[0m SwiftLint: {s}\n");
-            let filtered_bytes = content.len();
-            return FilterOutput {
-                content,
-                original_bytes,
-                filtered_bytes,
-            };
-        }
-        return FilterOutput::passthrough(raw);
-    }
-
-    // Group by rule name, split by severity
-    let mut errors: BTreeMap<String, Vec<Location>> = BTreeMap::new();
-    let mut warnings: BTreeMap<String, Vec<Location>> = BTreeMap::new();
-    let mut files: std::collections::HashSet<String> = std::collections::HashSet::new();
-
-    for v in &violations {
-        files.insert(v.file.clone());
-        let loc = Location {
-            file: short_path(&v.file),
-            line: v.line,
-        };
-        if v.severity == "error" {
-            errors.entry(v.rule.clone()).or_default().push(loc);
-        } else {
-            warnings.entry(v.rule.clone()).or_default().push(loc);
-        }
-    }
-
-    let error_count: usize = errors.values().map(|v| v.len()).sum();
-    let warning_count: usize = warnings.values().map(|v| v.len()).sum();
-    let file_count = files.len();
-
-    let mut out = String::new();
-
-    // Summary header
-    if error_count > 0 {
-        out.push_str(&format!(
-            "\x1b[31m{error_count} error{}\x1b[0m, \
-             \x1b[33m{warning_count} warning{}\x1b[0m \
-             across {file_count} file{}\n",
-            plural(error_count),
-            plural(warning_count),
-            plural(file_count),
-        ));
-    } else {
-        out.push_str(&format!(
-            "\x1b[33m{warning_count} warning{}\x1b[0m \
-             across {file_count} file{}\n",
-            plural(warning_count),
-            plural(file_count),
-        ));
-    }
-
-    // Errors first
-    if !errors.is_empty() {
-        out.push('\n');
-        for (rule, locs) in &errors {
-            let count = locs.len();
-            out.push_str(&format!(
-                "  \x1b[31merror\x1b[0m  {rule:<40}  {count} violation{}\n",
-                plural(count)
-            ));
-            if verbosity == Verbosity::Verbose {
-                for loc in locs.iter().take(3) {
-                    out.push_str(&format!("    {}:{}\n", loc.file, loc.line));
-                }
-                if locs.len() > 3 {
-                    out.push_str(&format!("    … and {} more\n", locs.len() - 3));
-                }
-            }
-        }
-    }
-
-    // Warnings
-    if !warnings.is_empty() {
-        out.push('\n');
-        for (rule, locs) in &warnings {
-            let count = locs.len();
-            out.push_str(&format!(
-                "  \x1b[33mwarn\x1b[0m   {rule:<40}  {count} violation{}\n",
-                plural(count)
-            ));
-            if verbosity == Verbosity::Verbose {
-                for loc in locs.iter().take(3) {
-                    out.push_str(&format!("    {}:{}\n", loc.file, loc.line));
-                }
-                if locs.len() > 3 {
-                    out.push_str(&format!("    … and {} more\n", locs.len() - 3));
-                }
-            }
-        }
-    }
-
-    let filtered_bytes = out.len();
+    let result = parse(raw);
+    let content = render(&result, verbosity, raw);
+    let filtered_bytes = content.len();
+    let structured = serde_json::to_value(&result).ok();
     FilterOutput {
-        content: out,
+        content,
         original_bytes,
         filtered_bytes,
+        structured,
     }
 }
 
-// ── Data ──────────────────────────────────────────────────────────────────────
-
-struct Violation {
-    file: String,
-    line: u32,
-    severity: String,
-    rule: String,
-}
-
-struct Location {
-    file: String,
-    line: u32,
-}
-
-// ── Parsing ───────────────────────────────────────────────────────────────────
-
-/// Parse SwiftLint violation lines.
-///
-/// Format: `/path/file.swift:LINE:COL: SEVERITY: RULE_IDENTIFIER: message`
-fn parse_violations(raw: &str) -> Vec<Violation> {
-    let mut violations = Vec::new();
+/// Parse raw `swiftlint` output into a structured result.
+pub fn parse(raw: &str) -> SwiftlintResult {
+    let mut errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut warnings: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut files: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for line in raw.lines() {
-        // Must contain ": warning:" or ": error:" to be a violation line
         let severity = if line.contains(": warning:") {
-            "warning"
+            Severity::Warning
         } else if line.contains(": error:") {
-            "error"
+            Severity::Error
         } else {
             continue;
         };
 
-        // Split on the first ": warning:" or ": error:"
-        let marker = if severity == "warning" {
-            ": warning:"
-        } else {
-            ": error:"
+        let marker = match severity {
+            Severity::Warning => ": warning:",
+            Severity::Error => ": error:",
         };
 
         let (location_part, rest) = match line.split_once(marker) {
@@ -181,8 +67,6 @@ fn parse_violations(raw: &str) -> Vec<Violation> {
             continue;
         }
 
-        // rest: " RULE_IDENTIFIER: message"
-        // SwiftLint puts the rule identifier before the first ": "
         let rule = rest
             .trim()
             .split_once(':')
@@ -194,15 +78,135 @@ fn parse_violations(raw: &str) -> Vec<Violation> {
             continue;
         }
 
-        violations.push(Violation {
-            file: file_path,
-            line: line_num,
-            severity: severity.to_string(),
+        files.insert(file_path.clone());
+        let loc = format!("{}:{}", short_path(&file_path), line_num);
+
+        match severity {
+            Severity::Error => errors.entry(rule).or_default().push(loc),
+            Severity::Warning => warnings.entry(rule).or_default().push(loc),
+        }
+    }
+
+    let error_count: usize = errors.values().map(|v| v.len()).sum();
+    let warning_count: usize = warnings.values().map(|v| v.len()).sum();
+
+    let mut rules: Vec<SwiftlintRuleGroup> = Vec::new();
+
+    // Errors first, then warnings (BTreeMap keeps rules sorted alphabetically)
+    for (rule, locs) in errors {
+        rules.push(SwiftlintRuleGroup {
             rule,
+            severity: Severity::Error,
+            count: locs.len(),
+            locations: locs,
+        });
+    }
+    for (rule, locs) in warnings {
+        rules.push(SwiftlintRuleGroup {
+            rule,
+            severity: Severity::Warning,
+            count: locs.len(),
+            locations: locs,
         });
     }
 
-    violations
+    SwiftlintResult {
+        total_violations: error_count + warning_count,
+        error_count,
+        warning_count,
+        file_count: files.len(),
+        rules,
+    }
+}
+
+/// Render the structured result as human-readable text.
+fn render(result: &SwiftlintResult, verbosity: Verbosity, raw: &str) -> String {
+    if result.total_violations == 0 {
+        if let Some(s) = extract_summary(raw) {
+            return format!("\x1b[32m✓\x1b[0m SwiftLint: {s}\n");
+        }
+        return raw.to_string();
+    }
+
+    let mut out = String::new();
+
+    // Summary header
+    if result.error_count > 0 {
+        out.push_str(&format!(
+            "\x1b[31m{} error{}\x1b[0m, \
+             \x1b[33m{} warning{}\x1b[0m \
+             across {} file{}\n",
+            result.error_count,
+            plural(result.error_count),
+            result.warning_count,
+            plural(result.warning_count),
+            result.file_count,
+            plural(result.file_count),
+        ));
+    } else {
+        out.push_str(&format!(
+            "\x1b[33m{} warning{}\x1b[0m \
+             across {} file{}\n",
+            result.warning_count,
+            plural(result.warning_count),
+            result.file_count,
+            plural(result.file_count),
+        ));
+    }
+
+    // Group by severity for display
+    let error_rules: Vec<_> = result
+        .rules
+        .iter()
+        .filter(|r| r.severity == Severity::Error)
+        .collect();
+    let warning_rules: Vec<_> = result
+        .rules
+        .iter()
+        .filter(|r| r.severity == Severity::Warning)
+        .collect();
+
+    if !error_rules.is_empty() {
+        out.push('\n');
+        for group in &error_rules {
+            out.push_str(&format!(
+                "  \x1b[31merror\x1b[0m  {:<40}  {} violation{}\n",
+                group.rule,
+                group.count,
+                plural(group.count)
+            ));
+            if verbosity == Verbosity::Verbose {
+                for loc in group.locations.iter().take(3) {
+                    out.push_str(&format!("    {loc}\n"));
+                }
+                if group.locations.len() > 3 {
+                    out.push_str(&format!("    … and {} more\n", group.locations.len() - 3));
+                }
+            }
+        }
+    }
+
+    if !warning_rules.is_empty() {
+        out.push('\n');
+        for group in &warning_rules {
+            out.push_str(&format!(
+                "  \x1b[33mwarn\x1b[0m   {:<40}  {} violation{}\n",
+                group.rule,
+                group.count,
+                plural(group.count)
+            ));
+            if verbosity == Verbosity::Verbose {
+                for loc in group.locations.iter().take(3) {
+                    out.push_str(&format!("    {loc}\n"));
+                }
+                if group.locations.len() > 3 {
+                    out.push_str(&format!("    … and {} more\n", group.locations.len() - 3));
+                }
+            }
+        }
+    }
+
+    out
 }
 
 /// Extract the SwiftLint summary line (e.g. "Done linting! Found 0 violations, ...")
@@ -212,21 +216,12 @@ fn extract_summary(raw: &str) -> Option<String> {
         .map(|l| l.trim().to_string())
 }
 
-/// Shorten an absolute path to the last 3 components.
 fn short_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 fn plural(n: usize) -> &'static str {
-    if n == 1 {
-        ""
-    } else {
-        "s"
-    }
+    super::util::plural(n)
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -316,6 +311,23 @@ Done linting! Found 0 violations, 0 serious in 8 files.
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_returns_structured_result() {
+        let result = parse(SAMPLE);
+        assert_eq!(result.error_count, 2);
+        assert_eq!(result.warning_count, 5);
+        assert_eq!(result.total_violations, 7);
+        assert_eq!(result.file_count, 4);
+        assert_eq!(result.rules.len(), 3); // force_cast, line_length, trailing_whitespace
+    }
+
+    #[test]
+    fn parse_clean_returns_zero_violations() {
+        let result = parse(SAMPLE_CLEAN);
+        assert_eq!(result.total_violations, 0);
+        assert!(result.rules.is_empty());
     }
 
     #[test]

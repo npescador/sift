@@ -1,0 +1,11 @@
+---
+source: tests/snapshot_tests.rs
+assertion_line: 78
+expression: out.content
+---
+[31mBUILD FAILED[0m — 2 errors, 2 warnings
+
+[1mMyApp/Sources/ContentView.swift[0m
+  [31merror:[0m MyApp/Sources/ContentView.swift:10: use of unresolved identifier 'ViewModelProtocol'
+[1mMyApp/Sources/NetworkClient.swift[0m
+  [31merror:[0m MyApp/Sources/NetworkClient.swift:22: cannot convert value of type 'String' to expected argument type 'URL'

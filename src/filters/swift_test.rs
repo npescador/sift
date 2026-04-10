@@ -109,6 +109,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 
@@ -139,14 +140,8 @@ fn extract_test_name(line: &str) -> String {
         .to_string()
 }
 
-/// Shorten a path+location string to last 3 path components.
 fn shorten_path(loc: &str) -> String {
-    // loc could be "/path/to/File.swift:LINE"
-    let parts: Vec<&str> = loc.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return loc.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(loc, 3)
 }
 
 #[cfg(test)]

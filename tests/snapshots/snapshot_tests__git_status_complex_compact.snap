@@ -1,0 +1,9 @@
+---
+source: tests/snapshot_tests.rs
+assertion_line: 53
+expression: out.content
+---
+On branch main
+staged     1 file   (src/cli.rs)
+modified   2 files  (src/main.rs, src/executor.rs)
+untracked  1 file   (notes.txt)

@@ -1,0 +1,6 @@
+---
+source: tests/snapshot_tests.rs
+assertion_line: 44
+expression: out.content
+---
+[32mTEST SUCCEEDED[0m  2 tests — [32m2 passed[0m

@@ -1,0 +1,11 @@
+---
+source: tests/snapshot_tests.rs
+assertion_line: 62
+expression: out.content
+---
+[31m2 errors[0m, [33m5 warnings[0m across 4 files
+
+  [31merror[0m  force_cast                                2 violations
+
+  [33mwarn[0m   line_length                               3 violations
+  [33mwarn[0m   trailing_whitespace                       2 violations

@@ -57,6 +57,7 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         content: out.clone(),
         original_bytes,
         filtered_bytes: out.len(),
+        structured: None,
     }
 }
 

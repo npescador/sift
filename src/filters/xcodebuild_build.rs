@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use crate::filters::types::XcodebuildBuildResult;
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Filter `xcodebuild build` output.
@@ -15,11 +16,26 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
+    let content = render(&result, verbosity);
+    let filtered_bytes = content.len();
+    let structured = serde_json::to_value(&result).ok();
+    FilterOutput {
+        content,
+        original_bytes,
+        filtered_bytes,
+        structured,
+    }
+}
+
+/// Parse raw `xcodebuild build` output into a structured result.
+pub fn parse(raw: &str) -> XcodebuildBuildResult {
     let mut errors: BTreeMap<String, Vec<String>> = BTreeMap::new();
     let mut linker_errors: Vec<String> = Vec::new();
     let mut signing_errors: Vec<String> = Vec::new();
     let mut warning_count = 0usize;
-    let mut build_result = "";
+    let mut succeeded = false;
+    let mut has_result = false;
 
     for line in raw.lines() {
         if line.contains(": error:") {
@@ -38,26 +54,50 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         } else if line.contains(": warning:") {
             warning_count += 1;
         } else if line.starts_with("** BUILD FAILED **") {
-            build_result = "** BUILD FAILED **";
+            succeeded = false;
+            has_result = true;
         } else if line.starts_with("** BUILD SUCCEEDED **") {
-            build_result = "** BUILD SUCCEEDED **";
+            succeeded = true;
+            has_result = true;
         }
     }
 
-    let swift_error_count: usize = errors.values().map(|v| v.len()).sum();
-    let total_errors = swift_error_count + linker_errors.len() + signing_errors.len();
+    // Flatten grouped errors into Diagnostic vec for structured output
+    let diagnostics = errors
+        .into_iter()
+        .flat_map(|(file, messages)| {
+            messages
+                .into_iter()
+                .map(move |msg| crate::filters::types::Diagnostic {
+                    file: file.clone(),
+                    line: None,
+                    column: None,
+                    severity: crate::filters::types::Severity::Error,
+                    message: msg,
+                })
+        })
+        .collect();
 
-    if total_errors == 0 && build_result == "** BUILD SUCCEEDED **" {
-        let content = format!(
-            "BUILD SUCCEEDED  ({warning_count} warning{})\n",
-            if warning_count == 1 { "" } else { "s" }
+    XcodebuildBuildResult {
+        succeeded: if has_result { succeeded } else { false },
+        errors: diagnostics,
+        warning_count,
+        linker_errors,
+        signing_errors,
+    }
+}
+
+/// Render the structured result as human-readable text.
+fn render(result: &XcodebuildBuildResult, verbosity: Verbosity) -> String {
+    let total_errors =
+        result.errors.len() + result.linker_errors.len() + result.signing_errors.len();
+
+    if total_errors == 0 && result.succeeded {
+        return format!(
+            "BUILD SUCCEEDED  ({} warning{})\n",
+            result.warning_count,
+            if result.warning_count == 1 { "" } else { "s" }
         );
-        let filtered_bytes = content.len();
-        return FilterOutput {
-            content,
-            original_bytes,
-            filtered_bytes,
-        };
     }
 
     let mut out = String::new();
@@ -65,33 +105,39 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     // Header
     out.push_str(&format!(
         "\x1b[31mBUILD FAILED\x1b[0m  \
-         {total_errors} error{}, {warning_count} warning{}\n",
+         {total_errors} error{}, {} warning{}\n",
         if total_errors == 1 { "" } else { "s" },
-        if warning_count == 1 { "" } else { "s" },
+        result.warning_count,
+        if result.warning_count == 1 { "" } else { "s" },
     ));
 
     // Signing / provisioning errors — highest priority, shown first
-    if !signing_errors.is_empty() {
+    if !result.signing_errors.is_empty() {
         out.push('\n');
         out.push_str("🔐 Signing / Provisioning\n");
-        for msg in &signing_errors {
+        for msg in &result.signing_errors {
             out.push_str(&format!("  {msg}\n"));
         }
     }
 
     // Linker errors
-    if !linker_errors.is_empty() {
+    if !result.linker_errors.is_empty() {
         out.push('\n');
         out.push_str("🔗 Linker\n");
-        for msg in &linker_errors {
+        for msg in &result.linker_errors {
             out.push_str(&format!("  {msg}\n"));
         }
     }
 
     // Swift/ObjC compiler errors grouped by file
-    if !errors.is_empty() {
+    // Re-group from the flat diagnostics list
+    let mut by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for diag in &result.errors {
+        by_file.entry(&diag.file).or_default().push(&diag.message);
+    }
+    if !by_file.is_empty() {
         out.push('\n');
-        for (file, messages) in &errors {
+        for (file, messages) in &by_file {
             out.push_str(&format!("\x1b[1m{file}\x1b[0m\n"));
             for msg in messages {
                 out.push_str(&format!("  \x1b[31merror:\x1b[0m {msg}\n"));
@@ -99,23 +145,21 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    if warning_count > 0 && verbosity == Verbosity::Verbose {
+    if result.warning_count > 0 && verbosity == Verbosity::Verbose {
         out.push_str(&format!(
-            "\n{warning_count} warning{} (use -vv to see details)\n",
-            if warning_count == 1 { "" } else { "s" }
+            "\n{} warning{} (use -vv to see details)\n",
+            result.warning_count,
+            if result.warning_count == 1 { "" } else { "s" }
         ));
     }
 
-    if !build_result.is_empty() {
-        out.push_str(&format!("\n{build_result}\n"));
+    if result.succeeded {
+        out.push_str("\n** BUILD SUCCEEDED **\n");
+    } else {
+        out.push_str("\n** BUILD FAILED **\n");
     }
 
-    let filtered_bytes = out.len();
-    FilterOutput {
-        content: out,
-        original_bytes,
-        filtered_bytes,
-    }
+    out
 }
 
 /// Detect linker error lines: `ld: ...`, `Undefined symbols`, `clang: error: linker command failed`.
@@ -172,11 +216,7 @@ fn split_diagnostic(line: &str) -> (String, String) {
 }
 
 fn shorten_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 #[cfg(test)]

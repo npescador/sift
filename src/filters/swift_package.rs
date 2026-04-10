@@ -28,6 +28,7 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
             filtered_bytes: out.len(),
             content: out,
             original_bytes,
+            structured: None,
         };
     }
 
@@ -37,6 +38,7 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
             filtered_bytes: out.len(),
             content: out,
             original_bytes,
+            structured: None,
         };
     }
 
@@ -62,6 +64,7 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
+        structured: None,
     }
 }
 

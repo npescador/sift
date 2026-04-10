@@ -83,6 +83,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
+        structured: None,
     }
 }
 
