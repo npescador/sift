@@ -5,6 +5,7 @@ mod error;
 mod executor;
 mod filters;
 mod init;
+mod streaming;
 mod tee;
 mod tracking;
 
@@ -123,9 +124,18 @@ fn run() -> Result<i32> {
             let program = &args[0];
             let rest = &args[1..];
 
-            let output = executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?;
-
             let family = commands::detect(&args);
+            let use_streaming = (cli.stream || cfg.streaming.enabled)
+                && streaming::supports_streaming(&family)
+                && verbosity != Verbosity::Raw;
+
+            let output = if use_streaming {
+                let handler = streaming::handler_for(&family).unwrap();
+                executor::execute_streaming(program, rest, handler)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?
+            } else {
+                executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?
+            };
             let filter_output = apply_filter(&args, &output.stdout, verbosity);
 
             if cfg.tracking.enabled {

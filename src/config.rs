@@ -12,6 +12,7 @@ pub struct Config {
     #[allow(dead_code)]
     pub tracking: TrackingConfig,
     pub tee: TeeConfig,
+    pub streaming: StreamingConfig,
 }
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +59,14 @@ impl Default for TeeConfig {
     fn default() -> Self {
         Self { enabled: true }
     }
+}
+
+/// Configuration for streaming mode — progressive output for long-running commands.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct StreamingConfig {
+    /// When true, enable streaming by default (can be overridden with `--stream`).
+    pub enabled: bool,
 }
 
 /// Parse a verbosity string from config into a [`crate::filters::Verbosity`] level.
