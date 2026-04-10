@@ -21,6 +21,10 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub json: bool,
 
+    /// Stream output progressively for long-running commands
+    #[arg(long, global = true)]
+    pub stream: bool,
+
     #[command(subcommand)]
     pub command: SiftCommand,
 }
