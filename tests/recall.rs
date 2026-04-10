@@ -35,7 +35,11 @@ fn assert_recall(filter_output: &str, manifest_json: &str, fixture_name: &str) {
         manifest.errors.len(),
         missed
             .iter()
-            .map(|e| format!("  [{severity}] \"{text}\"", severity = e.severity, text = e.text))
+            .map(|e| format!(
+                "  [{severity}] \"{text}\"",
+                severity = e.severity,
+                text = e.text
+            ))
             .collect::<Vec<_>>()
             .join("\n")
     );

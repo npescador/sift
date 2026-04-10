@@ -180,10 +180,7 @@ fn render(result: &SwiftlintResult, verbosity: Verbosity, raw: &str) -> String {
                     out.push_str(&format!("    {loc}\n"));
                 }
                 if group.locations.len() > 3 {
-                    out.push_str(&format!(
-                        "    … and {} more\n",
-                        group.locations.len() - 3
-                    ));
+                    out.push_str(&format!("    … and {} more\n", group.locations.len() - 3));
                 }
             }
         }
@@ -203,10 +200,7 @@ fn render(result: &SwiftlintResult, verbosity: Verbosity, raw: &str) -> String {
                     out.push_str(&format!("    {loc}\n"));
                 }
                 if group.locations.len() > 3 {
-                    out.push_str(&format!(
-                        "    … and {} more\n",
-                        group.locations.len() - 3
-                    ));
+                    out.push_str(&format!("    … and {} more\n", group.locations.len() - 3));
                 }
             }
         }

@@ -66,15 +66,15 @@ pub fn parse(raw: &str) -> XcodebuildBuildResult {
     let diagnostics = errors
         .into_iter()
         .flat_map(|(file, messages)| {
-            messages.into_iter().map(move |msg| {
-                crate::filters::types::Diagnostic {
+            messages
+                .into_iter()
+                .map(move |msg| crate::filters::types::Diagnostic {
                     file: file.clone(),
                     line: None,
                     column: None,
                     severity: crate::filters::types::Severity::Error,
                     message: msg,
-                }
-            })
+                })
         })
         .collect();
 

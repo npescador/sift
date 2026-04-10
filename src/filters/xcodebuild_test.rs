@@ -113,10 +113,7 @@ fn render(result: &XcodebuildTestResult, verbosity: Verbosity) -> String {
         result.passed,
     ));
     if result.failed > 0 {
-        out.push_str(&format!(
-            ", \x1b[31m{} failed\x1b[0m",
-            result.failed
-        ));
+        out.push_str(&format!(", \x1b[31m{} failed\x1b[0m", result.failed));
     }
     if result.skipped > 0 {
         out.push_str(&format!(", {} skipped", result.skipped));

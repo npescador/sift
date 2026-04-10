@@ -16,7 +16,11 @@ pub fn short_path(path: &str, keep: usize) -> String {
 
 /// Return `""` for 1, `"s"` otherwise — for simple English plurals.
 pub fn plural(n: usize) -> &'static str {
-    if n == 1 { "" } else { "s" }
+    if n == 1 {
+        ""
+    } else {
+        "s"
+    }
 }
 
 /// Split a compiler diagnostic line at a severity marker (e.g. `": error:"`).

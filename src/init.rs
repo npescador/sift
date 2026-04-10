@@ -19,7 +19,14 @@ const BLOCK_END: &str = "# END sift hooks";
 const ALL_HOOK_COMMANDS: &[&str] = &["git", "xcodebuild", "xcrun", "swiftlint"];
 
 /// CI environment variables that disable hooks when present.
-const CI_ENV_VARS: &[&str] = &["CI", "GITHUB_ACTIONS", "JENKINS_URL", "BUILDKITE", "CIRCLECI", "TRAVIS"];
+const CI_ENV_VARS: &[&str] = &[
+    "CI",
+    "GITHUB_ACTIONS",
+    "JENKINS_URL",
+    "BUILDKITE",
+    "CIRCLECI",
+    "TRAVIS",
+];
 
 /// CLAUDE.md content injected / appended to the project file.
 const CLAUDE_MD_BLOCK_START: &str = "<!-- BEGIN sift instructions -->";
@@ -167,8 +174,10 @@ fn install_shell_hook(commands: &[String]) -> Result<()> {
     println!("Shell hooks installed in {}", rc_path.display());
     println!();
     println!("   Wrapped commands: {cmd_list}");
-    println!("   Hooks are disabled in CI environments ({}).",
-        CI_ENV_VARS.join(", "));
+    println!(
+        "   Hooks are disabled in CI environments ({}).",
+        CI_ENV_VARS.join(", ")
+    );
     println!("   Use `command <cmd>` to bypass sift (e.g. `command git status`).");
     println!();
     println!("   Reload your shell:");
