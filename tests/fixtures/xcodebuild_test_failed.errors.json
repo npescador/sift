@@ -1,0 +1,7 @@
+{
+  "errors": [
+    {"text": "TEST FAILED", "severity": "critical"},
+    {"text": "testPayment", "severity": "error"},
+    {"text": "failed", "severity": "error"}
+  ]
+}

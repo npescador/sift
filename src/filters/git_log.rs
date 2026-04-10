@@ -58,6 +58,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 
@@ -79,6 +80,7 @@ pub fn filter_graph(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: inner.content,
         original_bytes,
         filtered_bytes: inner.filtered_bytes,
+        structured: None,
     }
 }
 

@@ -1,0 +1,18 @@
+---
+source: tests/snapshot_tests.rs
+assertion_line: 69
+expression: out.content
+---
+[31m2 errors[0m, [33m5 warnings[0m across 4 files
+
+  [31merror[0m  force_cast                                2 violations
+    dev/MyApp/LoginView.swift:88
+    dev/MyApp/PaymentService.swift:33
+
+  [33mwarn[0m   line_length                               3 violations
+    dev/MyApp/ContentView.swift:42
+    dev/MyApp/LoginView.swift:15
+    dev/MyApp/NetworkLayer.swift:12
+  [33mwarn[0m   trailing_whitespace                       2 violations
+    dev/MyApp/ContentView.swift:45
+    dev/MyApp/PaymentService.swift:55

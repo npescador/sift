@@ -1,3 +1,4 @@
+use crate::filters::types::{TestFailure, XcodebuildTestResult};
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Filter `xcodebuild test` output — pass/fail summary with failed test details.
@@ -12,12 +13,26 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
+    let content = render(&result, verbosity);
+    let filtered_bytes = content.len();
+    let structured = serde_json::to_value(&result).ok();
+    FilterOutput {
+        content,
+        original_bytes,
+        filtered_bytes,
+        structured,
+    }
+}
+
+/// Parse raw `xcodebuild test` output into a structured result.
+pub fn parse(raw: &str) -> XcodebuildTestResult {
     let mut passed = 0usize;
     let mut failed = 0usize;
     let skipped = 0usize;
-    let mut failures: Vec<FailedTest> = Vec::new();
-    let mut current_failure: Option<FailedTest> = None;
-    let mut test_result = "";
+    let mut failures: Vec<TestFailure> = Vec::new();
+    let mut current_failure: Option<TestFailure> = None;
+    let mut succeeded = false;
 
     for line in raw.lines() {
         let trimmed = line.trim();
@@ -33,20 +48,19 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             }
             failed += 1;
             let name = extract_test_name(trimmed);
-            current_failure = Some(FailedTest {
+            current_failure = Some(TestFailure {
                 name,
                 location: String::new(),
                 message: String::new(),
             });
         } else if trimmed.starts_with("** TEST FAILED **") {
-            test_result = "TEST FAILED";
+            succeeded = false;
             if let Some(f) = current_failure.take() {
                 failures.push(f);
             }
         } else if trimmed.starts_with("** TEST SUCCEEDED **") {
-            test_result = "TEST SUCCEEDED";
+            succeeded = true;
         } else if trimmed.contains(": error: XCTAssert") || trimmed.contains(": XCTAssert") {
-            // Capture the assertion failure detail
             if let Some(ref mut f) = current_failure {
                 if f.message.is_empty() {
                     let msg = trimmed
@@ -56,66 +70,73 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
                         .unwrap_or(trimmed)
                         .trim();
                     f.message = msg.to_string();
-                    if verbosity == Verbosity::Verbose {
-                        // Extract location (first part before the assertion)
-                        if let Some(loc) = trimmed.split(": error:").next() {
-                            f.location = shorten_path(loc);
-                        }
+                    if let Some(loc) = trimmed.split(": error:").next() {
+                        f.location = loc.trim().to_string();
                     }
                 }
             }
         }
     }
 
-    // Flush any pending failure
     if let Some(f) = current_failure.take() {
         failures.push(f);
     }
 
-    let total = passed + failed + skipped;
+    XcodebuildTestResult {
+        succeeded,
+        passed,
+        failed,
+        skipped,
+        failures,
+    }
+}
+
+/// Render the structured result as human-readable text.
+fn render(result: &XcodebuildTestResult, verbosity: Verbosity) -> String {
+    let total = result.passed + result.failed + result.skipped;
+    let test_result = if result.succeeded {
+        "TEST SUCCEEDED"
+    } else {
+        "TEST FAILED"
+    };
 
     let mut out = String::new();
 
-    // Result header
-    let result_color = if failed > 0 { "\x1b[31m" } else { "\x1b[32m" };
+    let result_color = if result.failed > 0 {
+        "\x1b[31m"
+    } else {
+        "\x1b[32m"
+    };
     out.push_str(&format!(
         "{result_color}{test_result}\x1b[0m  \
-         {total} tests — \x1b[32m{passed} passed\x1b[0m",
+         {total} tests — \x1b[32m{} passed\x1b[0m",
+        result.passed,
     ));
-    if failed > 0 {
-        out.push_str(&format!(", \x1b[31m{failed} failed\x1b[0m"));
+    if result.failed > 0 {
+        out.push_str(&format!(
+            ", \x1b[31m{} failed\x1b[0m",
+            result.failed
+        ));
     }
-    if skipped > 0 {
-        out.push_str(&format!(", {skipped} skipped"));
+    if result.skipped > 0 {
+        out.push_str(&format!(", {} skipped", result.skipped));
     }
     out.push('\n');
 
-    // Failed test details
-    if !failures.is_empty() {
+    if !result.failures.is_empty() {
         out.push('\n');
-        for f in &failures {
+        for f in &result.failures {
             out.push_str(&format!("  \x1b[31m✗\x1b[0m {}\n", f.name));
             if !f.message.is_empty() {
                 out.push_str(&format!("    {}\n", f.message));
             }
             if verbosity == Verbosity::Verbose && !f.location.is_empty() {
-                out.push_str(&format!("    at {}\n", f.location));
+                out.push_str(&format!("    at {}\n", shorten_path(&f.location)));
             }
         }
     }
 
-    let filtered_bytes = out.len();
-    FilterOutput {
-        content: out,
-        original_bytes,
-        filtered_bytes,
-    }
-}
-
-struct FailedTest {
-    name: String,
-    location: String,
-    message: String,
+    out
 }
 
 /// Extract test name from a line like:
@@ -125,11 +146,7 @@ fn extract_test_name(line: &str) -> String {
 }
 
 fn shorten_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 #[cfg(test)]

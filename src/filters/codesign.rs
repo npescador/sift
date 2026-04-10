@@ -66,6 +66,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 
@@ -121,6 +122,7 @@ pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 
@@ -141,11 +143,7 @@ fn parse_identity_line(line: &str) -> Option<String> {
 }
 
 fn short_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 #[cfg(test)]

@@ -61,6 +61,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
+        structured: None,
     }
 }
 
@@ -88,7 +89,7 @@ fn extract_project(raw: &str) -> Option<String> {
 }
 
 /// Extract items from an indented section like:
-/// ```
+/// ```text
 /// Schemes:
 ///     MyApp
 ///     MyApp-Dev

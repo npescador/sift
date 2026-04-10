@@ -1,3 +1,6 @@
+pub mod types;
+pub mod util;
+
 pub mod agvtool;
 pub mod codesign;
 pub mod curl;
@@ -50,6 +53,8 @@ pub struct FilterOutput {
     pub original_bytes: usize,
     /// Size of the filtered output in bytes.
     pub filtered_bytes: usize,
+    /// Structured data for JSON output. `None` for filters not yet converted.
+    pub structured: Option<serde_json::Value>,
 }
 
 impl FilterOutput {
@@ -70,6 +75,7 @@ impl FilterOutput {
             content: raw.to_string(),
             original_bytes: bytes,
             filtered_bytes: bytes,
+            structured: None,
         }
     }
 }

@@ -1,0 +1,5 @@
+/Users/dev/MyApp/Sources/ContentView.swift:10:5: error: use of unresolved identifier 'ViewModelProtocol'
+/Users/dev/MyApp/Sources/ContentView.swift:15:3: warning: result of call to 'loadView()' is unused
+/Users/dev/MyApp/Sources/NetworkClient.swift:22:10: error: cannot convert value of type 'String' to expected argument type 'URL'
+/Users/dev/MyApp/Sources/NetworkClient.swift:44:8: warning: variable 'response' was never mutated
+build: ** BUILD FAILED **

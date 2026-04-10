@@ -11,6 +11,10 @@ readme = "README.md"
 keywords = ["cli", "developer-tools", "ai", "terminal", "output"]
 categories = ["command-line-utilities", "development-tools"]
 
+[lib]
+name = "sift_cli"
+path = "src/lib.rs"
+
 [[bin]]
 name = "sift"
 path = "src/main.rs"
@@ -32,6 +36,7 @@ rusqlite = { version = "0.31", features = ["bundled"] }
 serde_json = "1"
 
 [dev-dependencies]
+insta = "1"
 
 [profile.release]
 strip = true

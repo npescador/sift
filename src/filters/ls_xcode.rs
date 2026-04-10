@@ -166,6 +166,7 @@ pub fn filter_ls(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 
@@ -211,6 +212,7 @@ pub fn filter_find(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: None,
     }
 }
 

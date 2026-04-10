@@ -23,6 +23,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
+            structured: None,
         };
     }
 
@@ -37,6 +38,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
+            structured: None,
         };
     }
 

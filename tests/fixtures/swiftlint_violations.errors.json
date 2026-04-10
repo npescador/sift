@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {"text": "force_cast", "severity": "error"},
+    {"text": "line_length", "severity": "warning"},
+    {"text": "trailing_whitespace", "severity": "warning"},
+    {"text": "2 error", "severity": "critical"},
+    {"text": "5 warning", "severity": "critical"}
+  ]
+}
