@@ -29,7 +29,10 @@ pub fn parse(raw: &str) -> SwiftTestResult {
                 });
                 current_name.clear();
             }
-        } else if trimmed.contains(": error:") && trimmed.contains("XCTAssert") && current_message.is_empty() {
+        } else if trimmed.contains(": error:")
+            && trimmed.contains("XCTAssert")
+            && current_message.is_empty()
+        {
             current_message = trimmed
                 .split(": error:")
                 .nth(1)
