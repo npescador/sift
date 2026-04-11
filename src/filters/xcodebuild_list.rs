@@ -1,4 +1,20 @@
+use crate::filters::types::XcodebuildListResult;
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> XcodebuildListResult {
+    let project = extract_project(raw);
+    let schemes = extract_section(raw, "Schemes:");
+    let targets = extract_section(raw, "Targets:");
+    let configurations = extract_section(raw, "Build Configurations:");
+    let default_scheme = extract_default_scheme(raw);
+    XcodebuildListResult {
+        project,
+        schemes,
+        targets,
+        configurations,
+        default_scheme,
+    }
+}
 
 /// Filter `xcodebuild -list` output.
 ///
@@ -12,16 +28,17 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     let original_bytes = raw.len();
 
-    let project = extract_project(raw);
-    let schemes = extract_section(raw, "Schemes:");
-    let targets = extract_section(raw, "Targets:");
-    let configs = extract_section(raw, "Build Configurations:");
-    let default_scheme = extract_default_scheme(raw);
+    let result = parse(raw);
+    let project = &result.project;
+    let schemes = &result.schemes;
+    let targets = &result.targets;
+    let configs = &result.configurations;
+    let default_scheme = &result.default_scheme;
 
     let mut out = String::new();
 
     // Header
-    match &project {
+    match project {
         Some(p) => out.push_str(&format!("📋 {p}\n")),
         None => out.push_str("📋 xcodebuild -list\n"),
     }
@@ -29,7 +46,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     // Schemes — mark the default
     if !schemes.is_empty() {
         out.push_str(&format!("\nSchemes ({}):\n", schemes.len()));
-        for s in &schemes {
+        for s in schemes {
             let marker = if default_scheme.as_deref() == Some(s.as_str()) {
                 "  ★ "
             } else {
@@ -47,7 +64,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     // Targets — verbose only
     if matches!(verbosity, Verbosity::Verbose) && !targets.is_empty() {
         out.push_str(&format!("\nTargets ({}):\n", targets.len()));
-        for t in &targets {
+        for t in targets {
             out.push_str(&format!("    {t}\n"));
         }
     } else if !targets.is_empty() {
@@ -61,7 +78,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
@@ -222,5 +239,20 @@ mod tests {
     fn extract_section_parses_correctly() {
         let schemes = extract_section(sample(), "Schemes:");
         assert_eq!(schemes, vec!["MyApp", "MyApp-Dev", "MyApp-Staging"]);
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(sample());
+        assert_eq!(result.project, Some("MyApp".to_string()));
+        assert_eq!(result.schemes.len(), 3);
+        assert_eq!(result.targets.len(), 3);
+        assert_eq!(result.default_scheme, Some("MyApp".to_string()));
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(sample(), Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

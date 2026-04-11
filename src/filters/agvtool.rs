@@ -1,4 +1,16 @@
+use crate::filters::types::AgvtoolResult;
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> AgvtoolResult {
+    let version = extract_what_version(raw).or_else(|| extract_new_version(raw).map(|(v, _)| v));
+    let files_updated = extract_new_version(raw)
+        .map(|(_, count)| count)
+        .unwrap_or(0);
+    AgvtoolResult {
+        version,
+        files_updated,
+    }
+}
 
 /// Filter `agvtool` output.
 ///
@@ -17,18 +29,26 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     // `what-version` output: single number or "Current version of project X is:\n    N"
     if let Some(version) = extract_what_version(raw) {
+        let result = AgvtoolResult {
+            version: Some(version.clone()),
+            files_updated: 0,
+        };
         let content = format!("Version: {version}\n");
         let filtered_bytes = content.len();
         return FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
-            structured: None,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
     // `new-version` output: detect "Setting version...to: N"
     if let Some((version, file_count)) = extract_new_version(raw) {
+        let result = AgvtoolResult {
+            version: Some(version.clone()),
+            files_updated: file_count,
+        };
         let content = format!(
             "Version updated → {version} ({file_count} file{})\n",
             if file_count == 1 { "" } else { "s" }
@@ -38,7 +58,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
-            structured: None,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
@@ -116,14 +136,14 @@ mod tests {
     use super::*;
 
     const SAMPLE_WHAT_VERSION: &str = "\
-Current version of project MyApp is: 
+Current version of project MyApp is:
     47
 ";
 
     const SAMPLE_WHAT_VERSION_SIMPLE: &str = "2\n";
 
     const SAMPLE_NEW_VERSION: &str = "\
-Setting version of project MyApp to: 
+Setting version of project MyApp to:
     48.
 
 Also setting CFBundleVersion key (assuming it exists)
@@ -167,5 +187,18 @@ Updated CFBundleVersion in \"MyAppUITests/Info.plist\" to 48
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE_NEW_VERSION, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_NEW_VERSION);
+        assert_eq!(result.version, Some("48".to_string()));
+        assert_eq!(result.files_updated, 3);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_NEW_VERSION, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }
