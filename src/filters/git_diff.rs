@@ -1,4 +1,55 @@
+use crate::filters::types::{DiffFile, GitDiffResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> GitDiffResult {
+    let mut files: Vec<DiffFile> = Vec::new();
+    let mut current_file = "";
+    let mut additions: i32 = 0;
+    let mut deletions: i32 = 0;
+    let mut total_additions: i32 = 0;
+    let mut total_deletions: i32 = 0;
+
+    for line in raw.lines() {
+        if line.starts_with("diff --git ") {
+            if !current_file.is_empty() {
+                total_additions += additions;
+                total_deletions += deletions;
+                files.push(DiffFile {
+                    path: current_file.to_string(),
+                    additions,
+                    deletions,
+                });
+            }
+            current_file = extract_diff_filename(line);
+            additions = 0;
+            deletions = 0;
+            continue;
+        }
+        if line.starts_with('+') && !line.starts_with("+++") {
+            additions += 1;
+        } else if line.starts_with('-') && !line.starts_with("---") {
+            deletions += 1;
+        }
+    }
+
+    if !current_file.is_empty() {
+        total_additions += additions;
+        total_deletions += deletions;
+        files.push(DiffFile {
+            path: current_file.to_string(),
+            additions,
+            deletions,
+        });
+    }
+
+    let file_count = files.len();
+    GitDiffResult {
+        files,
+        total_additions,
+        total_deletions,
+        file_count,
+    }
+}
 
 /// Filter `git diff` output into a compact per-file summary.
 ///
@@ -12,55 +63,49 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let mut out = String::new();
-    let mut current_file = "";
-    let mut additions: i32 = 0;
-    let mut deletions: i32 = 0;
-    let mut file_count = 0;
-    let mut total_additions: i32 = 0;
-    let mut total_deletions: i32 = 0;
+    let result = parse(raw);
 
-    for line in raw.lines() {
-        if line.starts_with("diff --git ") {
-            // Flush previous file
-            if !current_file.is_empty() {
-                flush_file(&mut out, current_file, additions, deletions, verbosity);
-                total_additions += additions;
-                total_deletions += deletions;
-            }
-            current_file = extract_diff_filename(line);
-            additions = 0;
-            deletions = 0;
-            file_count += 1;
-            continue;
-        }
-
-        if line.starts_with('+') && !line.starts_with("+++") {
-            additions += 1;
-        } else if line.starts_with('-') && !line.starts_with("---") {
-            deletions += 1;
-        } else if line.starts_with("@@") && verbosity == Verbosity::Verbose {
-            // Include hunk headers in verbose mode
-            out.push_str(&format!("  {line}\n"));
-        }
-    }
-
-    // Flush last file
-    if !current_file.is_empty() {
-        flush_file(&mut out, current_file, additions, deletions, verbosity);
-        total_additions += additions;
-        total_deletions += deletions;
-    }
-
-    if file_count == 0 {
+    if result.file_count == 0 {
         return FilterOutput::passthrough(raw);
     }
 
-    // Summary line
+    let mut out = String::new();
+
+    // Re-scan for hunk headers in verbose mode (not stored in parse result)
+    let mut file_hunks: std::collections::HashMap<&str, Vec<&str>> =
+        std::collections::HashMap::new();
+    if verbosity == Verbosity::Verbose {
+        let mut cur = "";
+        for line in raw.lines() {
+            if line.starts_with("diff --git ") {
+                cur = extract_diff_filename(line);
+            } else if line.starts_with("@@") {
+                file_hunks.entry(cur).or_default().push(line);
+            }
+        }
+    }
+
+    for file in &result.files {
+        out.push_str(&format!(
+            "  {:<50}  \x1b[32m+{}\x1b[0m \x1b[31m-{}\x1b[0m\n",
+            file.path, file.additions, file.deletions
+        ));
+        if verbosity == Verbosity::Verbose {
+            if let Some(hunks) = file_hunks.get(file.path.as_str()) {
+                for h in hunks {
+                    out.push_str(&format!("  {h}\n"));
+                }
+            }
+        }
+    }
+
     out.push_str(&format!(
-        "\n{file_count} file{} changed  \
-         \x1b[32m+{total_additions}\x1b[0m \x1b[31m-{total_deletions}\x1b[0m\n",
-        if file_count == 1 { "" } else { "s" }
+        "\n{} file{} changed  \
+         \x1b[32m+{}\x1b[0m \x1b[31m-{}\x1b[0m\n",
+        result.file_count,
+        if result.file_count == 1 { "" } else { "s" },
+        result.total_additions,
+        result.total_deletions,
     ));
 
     let filtered_bytes = out.len();
@@ -68,18 +113,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-fn flush_file(out: &mut String, file: &str, additions: i32, deletions: i32, _verbosity: Verbosity) {
-    out.push_str(&format!(
-        "  {file:<50}  \x1b[32m+{additions}\x1b[0m \x1b[31m-{deletions}\x1b[0m\n"
-    ));
-}
-
 fn extract_diff_filename(line: &str) -> &str {
-    // "diff --git a/src/main.rs b/src/main.rs" → "src/main.rs"
     line.split(' ')
         .next_back()
         .and_then(|s| s.strip_prefix("b/"))
@@ -128,5 +166,19 @@ index 111..222 100644
     fn extracts_filename_correctly() {
         let line = "diff --git a/src/main.rs b/src/main.rs";
         assert_eq!(extract_diff_filename(line), "src/main.rs");
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_DIFF);
+        assert_eq!(result.file_count, 2);
+        assert_eq!(result.total_additions, 3);
+        assert_eq!(result.total_deletions, 1);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_DIFF, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

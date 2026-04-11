@@ -1,27 +1,10 @@
+use crate::filters::types::TuistResult;
 use crate::filters::{FilterOutput, Verbosity};
 
-/// Filter `tuist generate`, `tuist fetch`, and other tuist subcommands.
-///
-/// Compact:
-/// - Show result line (last meaningful line or explicit success/error)
-/// - List targets (lines starting with `  ▸`) and dependencies (`  Resolving:`)
-/// - Show errors
-/// - Strip "Loading package", "Resolving package dependencies",
-///   "Generating workspace...", "Generating Xcode workspace..."
-///
-/// Verbose: same + intermediate steps.
-/// VeryVerbose+: raw passthrough.
-pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
-    let original_bytes = raw.len();
-
-    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
-        return FilterOutput::passthrough(raw);
-    }
-
+pub fn parse(raw: &str) -> TuistResult {
     let mut targets: Vec<String> = Vec::new();
     let mut errors: Vec<String> = Vec::new();
     let mut result_line: Option<String> = None;
-    let mut intermediate: Vec<String> = Vec::new();
 
     let noise_compact = [
         "Loading package at",
@@ -33,12 +16,9 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     for line in raw.lines() {
         let trimmed = line.trim();
-
         if trimmed.is_empty() {
             continue;
         }
-
-        // Error lines
         if trimmed.starts_with("Error:")
             || trimmed.starts_with("error:")
             || trimmed.starts_with("Error!")
@@ -46,8 +26,6 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             errors.push(trimmed.to_string());
             continue;
         }
-
-        // Result / completion lines
         if trimmed.starts_with("Workspace generated")
             || trimmed.starts_with("Dependencies fetched")
             || trimmed.starts_with("Successfully ")
@@ -56,62 +34,93 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             result_line = Some(trimmed.to_string());
             continue;
         }
-
-        // Target lines: "  ▸ Target MyApp"
         if trimmed.starts_with('▸') {
             targets.push(trimmed.trim_start_matches('▸').trim().to_string());
             continue;
         }
-
-        // Dependency lines: "  Resolving: Alamofire 5.8.1"
         if trimmed.starts_with("Resolving:") {
             targets.push(trimmed.to_string());
             continue;
         }
-
-        // Skip noise in compact mode
         if noise_compact.iter().any(|n| trimmed.starts_with(n)) {
-            if verbosity == Verbosity::Verbose {
-                intermediate.push(trimmed.to_string());
-            }
             continue;
         }
+    }
 
-        // Intermediate steps (kept in verbose)
-        if verbosity == Verbosity::Verbose {
-            intermediate.push(trimmed.to_string());
+    let succeeded = result_line.is_some() && errors.is_empty();
+
+    TuistResult {
+        succeeded,
+        targets,
+        errors,
+        result: result_line,
+    }
+}
+
+/// Filter `tuist generate`, `tuist fetch`, and other tuist subcommands.
+///
+/// Compact:
+/// - Show result line
+/// - List targets and dependencies
+/// - Show errors
+/// - Strip noise
+///
+/// Verbose: same + intermediate steps.
+/// VeryVerbose+: raw passthrough.
+pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
+    let original_bytes = raw.len();
+
+    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
+        return FilterOutput::passthrough(raw);
+    }
+
+    let result = parse(raw);
+
+    let mut intermediate: Vec<String> = Vec::new();
+    if verbosity == Verbosity::Verbose {
+        let noise_compact = [
+            "Loading package at",
+            "Resolving package dependencies",
+            "Generating workspace...",
+            "Generating Xcode workspace...",
+            "Fetching dependencies...",
+        ];
+        for line in raw.lines() {
+            let trimmed = line.trim();
+            if trimmed.is_empty() {
+                continue;
+            }
+            if noise_compact.iter().any(|n| trimmed.starts_with(n)) {
+                intermediate.push(trimmed.to_string());
+            }
         }
     }
 
     let mut out = String::new();
 
-    // Errors first
-    if !errors.is_empty() {
-        for e in &errors {
+    if !result.errors.is_empty() {
+        for e in &result.errors {
             out.push_str(&format!("\x1b[31m{e}\x1b[0m\n"));
         }
     }
 
-    // Verbose: intermediate steps
     if verbosity == Verbosity::Verbose && !intermediate.is_empty() {
         for s in &intermediate {
             out.push_str(&format!("{s}\n"));
         }
-        if !targets.is_empty() || result_line.is_some() {
+        if !result.targets.is_empty() || result.result.is_some() {
             out.push('\n');
         }
     }
 
-    // Targets / dependencies
-    if !targets.is_empty() {
-        for t in &targets {
+    if !result.targets.is_empty() {
+        for t in &result.targets {
             out.push_str(&format!("  ▸ {t}\n"));
         }
     }
 
-    // Result line
-    if let Some(ref r) = result_line {
-        if !targets.is_empty() {
+    if let Some(ref r) = result.result {
+        if !result.targets.is_empty() {
             out.push('\n');
         }
         out.push_str(&format!("\x1b[32m{r}\x1b[0m\n"));
@@ -126,7 +135,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
@@ -216,5 +225,18 @@ Error: Target 'MyDependency' was not found in the manifest.
             out.content.contains("Generating workspace")
                 || out.content.contains("Resolving package")
         );
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_GENERATE);
+        assert!(result.succeeded);
+        assert_eq!(result.targets.len(), 3);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_GENERATE, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }
