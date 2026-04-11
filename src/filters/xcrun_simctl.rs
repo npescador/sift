@@ -1,4 +1,18 @@
+use crate::filters::types::{SimDevice, SimctlListResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> SimctlListResult {
+    let devices = parse_devices(raw);
+    let ios_devices: Vec<SimDevice> = devices
+        .into_iter()
+        .filter(|d| d.platform.starts_with("iOS"))
+        .collect();
+    let booted_count = ios_devices.iter().filter(|d| d.state == "Booted").count();
+    SimctlListResult {
+        booted_count,
+        devices: ios_devices,
+    }
+}
 
 /// Filter `xcrun simctl list` output.
 ///
@@ -12,52 +26,39 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let devices = parse_devices(raw);
+    let result = parse(raw);
 
-    // Compact/Verbose: iOS only; Raw handled above
-    let ios_devices: Vec<&Device> = devices
-        .iter()
-        .filter(|d| d.platform.starts_with("iOS"))
-        .collect();
-
-    if ios_devices.is_empty() {
-        // Nothing recognised — passthrough so we never hide useful output
+    if result.devices.is_empty() {
         return FilterOutput::passthrough(raw);
     }
 
     let mut out = String::new();
 
-    // Group by OS version, Booted devices first within each group
-    let mut versions: Vec<&str> = ios_devices.iter().map(|d| d.platform.as_str()).collect();
-    versions.dedup();
-    // preserve insertion order but deduplicate
-    let mut seen_versions: Vec<&str> = Vec::new();
-    for v in &versions {
-        if !seen_versions.contains(v) {
-            seen_versions.push(v);
-        }
-    }
-
-    let booted_count = ios_devices.iter().filter(|d| d.state == "Booted").count();
-    if booted_count > 0 {
+    if result.booted_count > 0 {
         out.push_str(&format!(
-            "Simulators (iOS) — \x1b[32m{booted_count} booted\x1b[0m\n"
+            "Simulators (iOS) — \x1b[32m{} booted\x1b[0m\n",
+            result.booted_count
         ));
     } else {
         out.push_str("Simulators (iOS) — all shutdown\n");
     }
 
+    let mut seen_versions: Vec<&str> = Vec::new();
+    for d in &result.devices {
+        if !seen_versions.contains(&d.platform.as_str()) {
+            seen_versions.push(&d.platform);
+        }
+    }
+
     for version in seen_versions {
-        let group: Vec<&&Device> = ios_devices
+        let mut group: Vec<&SimDevice> = result
+            .devices
             .iter()
             .filter(|d| d.platform == version)
             .collect();
+        group.sort_by_key(|d| (d.state != "Booted", d.name.clone()));
 
-        // Booted first, then alphabetical
-        let mut sorted = group.clone();
-        sorted.sort_by_key(|d| (d.state != "Booted", d.name.clone()));
-
-        for device in sorted {
+        for device in group {
             let state_str = if device.state == "Booted" {
                 "\x1b[32mBooted\x1b[0m  "
             } else {
@@ -67,7 +68,6 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             let udid = if verbosity == Verbosity::Verbose {
                 device.udid.clone()
             } else {
-                // Short UDID: first 8 chars
                 device.udid.chars().take(8).collect()
             };
 
@@ -83,31 +83,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-// ── Parsing ───────────────────────────────────────────────────────────────────
-
-struct Device {
-    platform: String,
-    name: String,
-    udid: String,
-    state: String,
-}
-
-/// Parse `xcrun simctl list` text output into a flat list of devices.
-///
-/// The format is:
-/// ```text
-/// == Devices ==
-/// -- iOS 18.0 --
-///     iPhone 16 Pro (UDID-HERE) (Booted)
-///     iPhone SE (3rd generation) (UDID-HERE) (Shutdown)
-/// -- watchOS 11.0 --
-///     ...
-/// ```
-fn parse_devices(raw: &str) -> Vec<Device> {
+fn parse_devices(raw: &str) -> Vec<SimDevice> {
     let mut devices = Vec::new();
     let mut current_platform = String::new();
     let mut in_devices_section = false;
@@ -120,7 +100,6 @@ fn parse_devices(raw: &str) -> Vec<Device> {
             continue;
         }
         if trimmed.starts_with("== ") && trimmed.ends_with(" ==") {
-            // New section (Runtimes, Device Types, etc.) — stop
             if in_devices_section {
                 break;
             }
@@ -131,7 +110,6 @@ fn parse_devices(raw: &str) -> Vec<Device> {
             continue;
         }
 
-        // Platform header: "-- iOS 18.0 --"
         if trimmed.starts_with("-- ") && trimmed.ends_with(" --") {
             current_platform = trimmed
                 .trim_start_matches("-- ")
@@ -144,7 +122,6 @@ fn parse_devices(raw: &str) -> Vec<Device> {
             continue;
         }
 
-        // Device line: "  iPhone 16 Pro (UDID) (Booted)"
         if let Some(device) = parse_device_line(trimmed, &current_platform) {
             devices.push(device);
         }
@@ -153,12 +130,7 @@ fn parse_devices(raw: &str) -> Vec<Device> {
     devices
 }
 
-/// Parse a single device line into a `Device`.
-///
-/// Format: `Name (UDID) (State)` — where UDID is a UUID and State is
-/// `Booted`, `Shutdown`, or `Creating`.
-fn parse_device_line(line: &str, platform: &str) -> Option<Device> {
-    // Find the last two parenthesised groups: (...state) and before it (...udid)
+fn parse_device_line(line: &str, platform: &str) -> Option<SimDevice> {
     let last_close = line.rfind(')')?;
     let last_open = line[..last_close].rfind('(')?;
     let state = line[last_open + 1..last_close].trim().to_string();
@@ -174,7 +146,7 @@ fn parse_device_line(line: &str, platform: &str) -> Option<Device> {
         return None;
     }
 
-    Some(Device {
+    Some(SimDevice {
         platform: platform.to_string(),
         name,
         udid,
@@ -182,15 +154,12 @@ fn parse_device_line(line: &str, platform: &str) -> Option<Device> {
     })
 }
 
-/// Shorten verbose device names for compact display.
 fn compact_device_name(name: &str) -> String {
     name.replace("(3rd generation)", "(3rd gen)")
         .replace("(2nd generation)", "(2nd gen)")
         .replace("(1st generation)", "(1st gen)")
         .replace("(4th generation)", "(4th gen)")
 }
-
-// ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
@@ -232,9 +201,7 @@ iOS 18.0 (18.0 - 22A3351) - com.apple.CoreSimulator.SimRuntime.iOS-18-0
     #[test]
     fn compact_uses_short_udid() {
         let out = filter(SAMPLE, Verbosity::Compact);
-        // Short UDID = first 8 chars of DEADBEEF-...
         assert!(out.content.contains("DEADBEEF"));
-        // Full UDID should NOT appear
         assert!(!out.content.contains("DEADBEEF-1234-5678-9ABC-DEF012345678"));
     }
 
@@ -262,13 +229,22 @@ iOS 18.0 (18.0 - 22A3351) - com.apple.CoreSimulator.SimRuntime.iOS-18-0
         let out = filter(SAMPLE, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
     }
+
+    #[test]
+    fn parse_returns_ios_devices_only() {
+        let result = parse(SAMPLE);
+        assert_eq!(result.booted_count, 2);
+        assert!(result.devices.iter().all(|d| d.platform.starts_with("iOS")));
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE, Verbosity::Compact);
+        assert!(out.structured.is_some());
+    }
 }
 
 /// Filter simctl action commands: boot, install, launch, erase, delete.
-///
-/// These commands typically produce minimal output (empty on success, or a PID
-/// for launch). The filter strips noise and shows a compact result.
-/// VeryVerbose+: raw passthrough.
 pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
     let original_bytes = raw.len();
 
@@ -276,7 +252,6 @@ pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    // If empty output — success (simctl commands are silent on success)
     if raw.trim().is_empty() {
         let content = "\x1b[32m✓\x1b[0m Done\n".to_string();
         let filtered_bytes = content.len();
@@ -284,7 +259,7 @@ pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
-            structured: None,
+            structured: serde_json::to_value(serde_json::json!({"done": true})).ok(),
         };
     }
 
@@ -296,13 +271,11 @@ pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
             continue;
         }
 
-        // Already booted message
         if trimmed.contains("Unable to boot device") && trimmed.contains("current state: Booted") {
             out.push_str("\x1b[33mAlready booted\x1b[0m\n");
             continue;
         }
 
-        // PID from launch: "com.example.app: 12345"
         if trimmed.contains(": ") {
             let parts: Vec<&str> = trimmed.splitn(2, ": ").collect();
             if parts.len() == 2 && parts[1].chars().all(|c| c.is_ascii_digit()) {
@@ -311,13 +284,11 @@ pub fn filter_simctl_action(raw: &str, verbosity: Verbosity) -> FilterOutput {
             }
         }
 
-        // Error lines
         if trimmed.starts_with("An error") || trimmed.starts_with("error:") {
             out.push_str(&format!("\x1b[31m{trimmed}\x1b[0m\n"));
             continue;
         }
 
-        // Pass other lines through
         out.push_str(&format!("{trimmed}\n"));
     }
 
@@ -365,7 +336,8 @@ mod simctl_action_tests {
 
     #[test]
     fn error_line_colored() {
-        let raw = "An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=1).\n";
+        let raw =
+            "An error was encountered processing the command (domain=NSPOSIXErrorDomain, code=1).\n";
         let out = filter_simctl_action(raw, Verbosity::Compact);
         assert!(out.content.contains("An error"));
     }

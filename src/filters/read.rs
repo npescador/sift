@@ -26,13 +26,10 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
+
     // Detect binary content early — don't attempt to display it
-    if is_likely_binary(raw) {
-        let result = ReadResult {
-            total_lines: 0,
-            shown_lines: 0,
-            is_binary: true,
-        };
+    if result.is_binary {
         let content = "(binary file — use --raw to see raw bytes)\n".to_string();
         let filtered_bytes = content.len();
         return FilterOutput {
@@ -49,13 +46,13 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         _ => usize::MAX,
     };
 
-    let lines: Vec<&str> = raw.lines().collect();
-    let total_lines = lines.len();
+    let total_lines = result.total_lines;
 
     if total_lines <= max_lines {
         return FilterOutput::passthrough(raw);
     }
 
+    let lines: Vec<&str> = raw.lines().collect();
     let shown: Vec<&str> = lines[..max_lines].to_vec();
     let remaining = total_lines - max_lines;
 

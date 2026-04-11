@@ -27,32 +27,18 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    // `what-version` output: single number or "Current version of project X is:\n    N"
-    if let Some(version) = extract_what_version(raw) {
-        let result = AgvtoolResult {
-            version: Some(version.clone()),
-            files_updated: 0,
-        };
-        let content = format!("Version: {version}\n");
-        let filtered_bytes = content.len();
-        return FilterOutput {
-            content,
-            original_bytes,
-            filtered_bytes,
-            structured: serde_json::to_value(&result).ok(),
-        };
-    }
+    let result = parse(raw);
 
-    // `new-version` output: detect "Setting version...to: N"
-    if let Some((version, file_count)) = extract_new_version(raw) {
-        let result = AgvtoolResult {
-            version: Some(version.clone()),
-            files_updated: file_count,
+    if let Some(ref version) = result.version {
+        let content = if result.files_updated > 0 {
+            let fc = result.files_updated;
+            format!(
+                "Version updated → {version} ({fc} file{})\n",
+                if fc == 1 { "" } else { "s" }
+            )
+        } else {
+            format!("Version: {version}\n")
         };
-        let content = format!(
-            "Version updated → {version} ({file_count} file{})\n",
-            if file_count == 1 { "" } else { "s" }
-        );
         let filtered_bytes = content.len();
         return FilterOutput {
             content,

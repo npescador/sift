@@ -1,11 +1,65 @@
+use crate::filters::types::SwiftFormatResult;
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> SwiftFormatResult {
+    let mut changed_files: Vec<String> = Vec::new();
+    let mut lint_errors: Vec<String> = Vec::new();
+    let mut completed_line: Option<String> = None;
+
+    let noise = [
+        "Running SwiftFormat",
+        "Reading configuration from",
+        "warning: ",
+    ];
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("SwiftFormat completed") {
+            completed_line = Some(trimmed.to_string());
+            continue;
+        }
+        if trimmed.starts_with("Applying rules:") {
+            continue;
+        }
+        if noise.iter().any(|n| trimmed.starts_with(n)) {
+            continue;
+        }
+        if trimmed.contains(": error:") && trimmed.contains('(') {
+            lint_errors.push(trimmed.to_string());
+            continue;
+        }
+        if trimmed.starts_with('/') || trimmed.starts_with('.') {
+            let file = trimmed
+                .split_whitespace()
+                .next()
+                .unwrap_or(trimmed)
+                .to_string();
+            changed_files.push(file);
+        }
+    }
+
+    let succeeded = completed_line
+        .as_deref()
+        .map(|l| !l.contains("error") && !l.contains("FAILED"))
+        .unwrap_or(lint_errors.is_empty());
+
+    SwiftFormatResult {
+        succeeded,
+        completed_line,
+        changed_files,
+        lint_errors,
+    }
+}
 
 /// Filter `swiftformat` output.
 ///
 /// Compact:
-/// - Show the "SwiftFormat completed" result line directly (already compact)
+/// - Show the "SwiftFormat completed" result line directly
 /// - List only files that were formatted/changed
-/// - In lint mode, show error lines (file:line:rule:message)
+/// - In lint mode, show error lines
 /// - Strip "Running SwiftFormat...", "Reading configuration", "Applying rules:" line
 ///
 /// Verbose: same + show which rules were applied.
@@ -17,58 +71,19 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let mut changed_files: Vec<String> = Vec::new();
-    let mut lint_errors: Vec<String> = Vec::new();
+    let result = parse(raw);
+
     let mut rules_line: Option<String> = None;
-    let mut completed_line: Option<String> = None;
-
-    let noise = [
-        "Running SwiftFormat",
-        "Reading configuration from",
-        "warning: ",
-    ];
-
     for line in raw.lines() {
         let trimmed = line.trim();
-
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // The "SwiftFormat completed" summary
-        if trimmed.starts_with("SwiftFormat completed") {
-            completed_line = Some(trimmed.to_string());
-            continue;
-        }
-
-        // Rules line
         if trimmed.starts_with("Applying rules:") {
             rules_line = Some(trimmed.to_string());
-            continue;
-        }
-
-        // Skip noise
-        if noise.iter().any(|n| trimmed.starts_with(n)) {
-            continue;
-        }
-
-        // Lint mode error lines: "path:LINE: error: (rule) message"
-        if trimmed.contains(": error:") && trimmed.contains('(') {
-            lint_errors.push(format_lint_error(trimmed));
-            continue;
-        }
-
-        // File lines — changed files (plain paths or paths with "(N changes)")
-        if trimmed.starts_with('/') || trimmed.starts_with('.') {
-            let file = short_path(trimmed.split_whitespace().next().unwrap_or(trimmed));
-            changed_files.push(file);
         }
     }
 
     let mut out = String::new();
 
-    // Completed line (already compact, show directly)
-    if let Some(ref comp) = completed_line {
+    if let Some(ref comp) = result.completed_line {
         let colored = if comp.contains("error") || comp.contains("FAILED") {
             format!("\x1b[31m{comp}\x1b[0m\n")
         } else {
@@ -77,23 +92,21 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         out.push_str(&colored);
     }
 
-    // Lint errors
-    if !lint_errors.is_empty() {
+    if !result.lint_errors.is_empty() {
         out.push('\n');
-        for e in &lint_errors {
-            out.push_str(&format!("  \x1b[31merror:\x1b[0m {e}\n"));
+        for e in &result.lint_errors {
+            let formatted = format_lint_error(e);
+            out.push_str(&format!("  \x1b[31merror:\x1b[0m {formatted}\n"));
         }
     }
 
-    // Changed files
-    if !changed_files.is_empty() {
+    if !result.changed_files.is_empty() {
         out.push('\n');
-        for f in &changed_files {
-            out.push_str(&format!("  {f}\n"));
+        for f in &result.changed_files {
+            out.push_str(&format!("  {}\n", short_path(f)));
         }
     }
 
-    // Rules (verbose only)
     if verbosity == Verbosity::Verbose {
         if let Some(ref rules) = rules_line {
             out.push('\n');
@@ -110,13 +123,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Format a lint error line to a shorter form.
 fn format_lint_error(line: &str) -> String {
-    // "/path/File.swift:42: error: (consecutiveBlankLines) consecutive blank lines"
     if let Some((_loc, rest)) = line.split_once(": error:") {
         let loc = short_path(_loc.trim());
         return format!("{loc}: {}", rest.trim());
@@ -214,5 +225,19 @@ SwiftFormat completed. 2 errors (lint mode). (0.412 seconds)
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE_FORMAT, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_extracts_structured_data() {
+        let result = parse(SAMPLE_FORMAT);
+        assert!(result.succeeded);
+        assert_eq!(result.changed_files.len(), 3);
+        assert!(result.completed_line.is_some());
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_FORMAT, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

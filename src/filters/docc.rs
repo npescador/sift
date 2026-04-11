@@ -1,4 +1,51 @@
+use crate::filters::types::DoccResult;
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> DoccResult {
+    let mut symbols_line: Option<String> = None;
+    let mut result_line: Option<String> = None;
+    let mut warnings: Vec<String> = Vec::new();
+
+    let noise = [
+        "Converting documentation...",
+        "Resolving links...",
+        "Writing output to",
+    ];
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.starts_with("Processing ") && trimmed.contains("symbol") {
+            symbols_line = Some(trimmed.to_string());
+            continue;
+        }
+        if trimmed.starts_with("Documentation converted") || trimmed.starts_with("Documentation ") {
+            result_line = Some(trimmed.to_string());
+            continue;
+        }
+        if trimmed.starts_with("warning:") {
+            warnings.push(trimmed.trim_start_matches("warning:").trim().to_string());
+            continue;
+        }
+        if noise.iter().any(|n| trimmed.starts_with(n)) {
+            continue;
+        }
+    }
+
+    let succeeded = result_line
+        .as_deref()
+        .map(|r| !r.contains("error") && !r.contains("fail"))
+        .unwrap_or(false);
+
+    DoccResult {
+        succeeded,
+        symbols_line,
+        warnings,
+        result_line,
+    }
+}
 
 /// Filter `docc convert` output.
 ///
@@ -16,61 +63,21 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let mut symbols_line: Option<String> = None;
-    let mut result_line: Option<String> = None;
-    let mut warnings: Vec<String> = Vec::new();
-
-    let noise = [
-        "Converting documentation...",
-        "Resolving links...",
-        "Writing output to",
-    ];
-
-    for line in raw.lines() {
-        let trimmed = line.trim();
-
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        // Symbols count line
-        if trimmed.starts_with("Processing ") && trimmed.contains("symbol") {
-            symbols_line = Some(trimmed.to_string());
-            continue;
-        }
-
-        // Result line
-        if trimmed.starts_with("Documentation converted") || trimmed.starts_with("Documentation ") {
-            result_line = Some(trimmed.to_string());
-            continue;
-        }
-
-        // Warning lines
-        if trimmed.starts_with("warning:") {
-            warnings.push(trimmed.trim_start_matches("warning:").trim().to_string());
-            continue;
-        }
-
-        // Skip noise
-        if noise.iter().any(|n| trimmed.starts_with(n)) {
-            continue;
-        }
-    }
+    let result = parse(raw);
 
     let mut out = String::new();
 
-    // Symbols line
-    if let Some(ref s) = symbols_line {
+    if let Some(ref s) = result.symbols_line {
         out.push_str(&format!("{s}\n"));
     }
 
-    // Warnings
-    if !warnings.is_empty() {
-        let count = warnings.len();
+    if !result.warnings.is_empty() {
+        let count = result.warnings.len();
         out.push_str(&format!(
             "\x1b[33m⚠️  {count} warning{}: {}\x1b[0m\n",
             if count == 1 { "" } else { "s" },
-            warnings
+            result
+                .warnings
                 .iter()
                 .take(3)
                 .cloned()
@@ -79,8 +86,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         ));
     }
 
-    // Result line
-    if let Some(ref r) = result_line {
+    if let Some(ref r) = result.result_line {
         let colored = if r.contains("error") || r.contains("fail") {
             format!("\x1b[31m✗\x1b[0m {r}\n")
         } else {
@@ -98,7 +104,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
-        structured: None,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
@@ -165,5 +171,19 @@ Documentation converted successfully with 2 warnings (2.3 seconds).
     fn success_shows_checkmark() {
         let out = filter(SAMPLE_SUCCESS, Verbosity::Compact);
         assert!(out.content.contains('✓'));
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_SUCCESS);
+        assert!(result.succeeded);
+        assert!(result.symbols_line.is_some());
+        assert!(result.warnings.is_empty());
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_SUCCESS, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }
