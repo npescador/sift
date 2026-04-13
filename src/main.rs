@@ -1,3 +1,4 @@
+mod benchmark;
 mod cli;
 mod commands;
 mod completions;
@@ -44,6 +45,11 @@ fn run() -> Result<i32> {
         cli::SiftCommand::Completions { shell } => {
             let mut cmd = cli::Cli::command();
             completions::generate(shell, &mut cmd, &mut std::io::stdout());
+            Ok(0)
+        }
+        cli::SiftCommand::Benchmark => {
+            let results = benchmark::run_all();
+            benchmark::print_results(&results);
             Ok(0)
         }
         cli::SiftCommand::Init {
