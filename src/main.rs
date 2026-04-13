@@ -10,6 +10,7 @@ mod init;
 mod streaming;
 mod tee;
 mod tracking;
+mod update;
 
 use anyhow::Result;
 use clap::Parser;
@@ -51,6 +52,9 @@ fn run() -> Result<i32> {
             let results = benchmark::run_all();
             benchmark::print_results(&results);
             Ok(0)
+        }
+        cli::SiftCommand::Update { check } => {
+            update::run(check).map_err(|e| anyhow::anyhow!("{e}"))
         }
         cli::SiftCommand::Init {
             shell,

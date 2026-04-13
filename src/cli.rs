@@ -108,6 +108,19 @@ pub enum SiftCommand {
     /// fixture and reports input size, output size, and bytes saved.
     Benchmark,
 
+    /// Check for a newer version and optionally self-update
+    ///
+    /// Downloads the latest release from GitHub and replaces the current
+    /// binary in-place. Requires `curl` to be available on $PATH.
+    ///
+    ///   sift update           # check and install latest
+    ///   sift update --check   # check only, do not install
+    Update {
+        /// Only check if an update is available — do not download or install
+        #[arg(long)]
+        check: bool,
+    },
+
     /// Run a command with smart output filtering
     #[command(external_subcommand)]
     Proxy(Vec<String>),

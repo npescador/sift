@@ -116,7 +116,7 @@ Quality-of-life improvements for daily use, plus the programmatic crate API.
 - [x] Per-command override configuration (`[commands.git]` etc.)
 - [x] `sift-lib` crate — programmatic library API for embedding Sift in other tools
 - [x] `sift benchmark` command for measuring real-world token savings
-- [ ] `sift update` — self-update from GitHub releases
+- [x] `sift update` — self-update from GitHub releases
 
 ---
 

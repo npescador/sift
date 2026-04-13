@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**`sift update` — self-update from GitHub releases**
+- New `sift update` subcommand — checks the latest release on GitHub and replaces the running binary in-place
+- `sift update --check` — only reports if an update is available without installing
+- Uses `curl` (always available on macOS/Linux) and `tar` — zero new dependencies
+- Atomic replacement: downloads to a temp file, then `fs::rename` over the current executable
+- Detects target triple automatically (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, etc.)
+- Graceful fallback: on download failure, prints direct GitHub releases URL
+- 7 new tests covering JSON tag parsing, semver comparison, target detection; test count 784 → 793
+
 **`sift benchmark` — built-in filter benchmarks**
 - New `sift benchmark` subcommand — runs all 17 built-in command family fixtures through their filters at Compact verbosity and prints a reduction table
 - Output: per-family input/output/saved columns + overall total row
