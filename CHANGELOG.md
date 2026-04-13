@@ -9,6 +9,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**Per-command configuration overrides (`[commands.<name>]`)**
+- New `[commands.<name>]` section in `~/.config/sift/config.toml` — override verbosity per command family
+- `verbosity` field: one of `compact`, `verbose`, `very_verbose`, `maximum`, `raw`
+- `max_lines` field: cap output lines for this command (parsed; filter-level wiring in a future release)
+- Priority chain: CLI flags > `[commands.<name>]` > `[defaults]` > built-in compact
+- `Config::resolve_verbosity(family_name, cli_override)` method in `config.rs` centralises resolution
+- 7 new tests covering TOML parsing, priority, fallback, and edge cases; test count 741 → 749
+- Example config:
+
+  ```toml
+  [commands.git]
+  verbosity = "verbose"
+
+  [commands.xcodebuild]
+  verbosity = "compact"
+  max_lines = 30
+  ```
+
 **Shell completions (`sift completions <shell>`)**
 - New `sift completions <shell>` subcommand — prints a completion script to stdout for `bash`, `zsh`, or `fish`
 - `sift init --completions <shell>` — installs the script to the standard location automatically:
