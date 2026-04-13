@@ -1,0 +1,5 @@
+CompileSwift normal arm64 /Users/dev/MyApp/ContentView.swift
+/Users/dev/MyApp/ContentView.swift:42:15: error: use of unresolved identifier 'foo'
+/Users/dev/MyApp/ContentView.swift:43:10: warning: result of call is unused
+/Users/dev/MyApp/LoginView.swift:10:5: error: cannot convert value of type 'Int' to 'String'
+** BUILD FAILED **

@@ -5,6 +5,7 @@ mod error;
 mod executor;
 mod filters;
 mod init;
+mod streaming;
 mod tee;
 mod tracking;
 
@@ -44,6 +45,7 @@ fn run() -> Result<i32> {
             xcode_project,
             show,
             uninstall,
+            commands,
         } => {
             init::run(init::InitOptions {
                 shell,
@@ -52,6 +54,7 @@ fn run() -> Result<i32> {
                 xcode_project,
                 show,
                 uninstall,
+                commands,
             })?;
             Ok(0)
         }
@@ -121,9 +124,18 @@ fn run() -> Result<i32> {
             let program = &args[0];
             let rest = &args[1..];
 
-            let output = executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?;
-
             let family = commands::detect(&args);
+            let use_streaming = (cli.stream || cfg.streaming.enabled)
+                && streaming::supports_streaming(&family)
+                && verbosity != Verbosity::Raw;
+
+            let output = if use_streaming {
+                let handler = streaming::handler_for(&family).unwrap();
+                executor::execute_streaming(program, rest, handler)
+                    .map_err(|e| anyhow::anyhow!("{e}"))?
+            } else {
+                executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?
+            };
             let filter_output = apply_filter(&args, &output.stdout, verbosity);
 
             if cfg.tracking.enabled {
@@ -134,6 +146,25 @@ fn run() -> Result<i32> {
                     output.exit_code,
                     output.duration_ms,
                 ));
+            }
+
+            // JSON mode: emit structured envelope
+            if cli.json {
+                let data = filter_output
+                    .structured
+                    .unwrap_or_else(|| serde_json::json!({"raw": filter_output.content}));
+                let envelope = serde_json::json!({
+                    "version": 1,
+                    "command": args.join(" "),
+                    "family": family.name(),
+                    "exit_code": output.exit_code,
+                    "data": data,
+                });
+                println!("{}", serde_json::to_string_pretty(&envelope).unwrap());
+                if !output.stderr.is_empty() {
+                    eprint!("{}", output.stderr);
+                }
+                return Ok(output.exit_code);
             }
 
             // Tee mode: if the filter produced nothing from non-empty input,

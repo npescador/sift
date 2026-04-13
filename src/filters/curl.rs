@@ -1,12 +1,76 @@
+use crate::filters::types::{CurlHeader, CurlResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> CurlResult {
+    if is_curl_error(raw) {
+        return CurlResult {
+            status_line: None,
+            status_code: None,
+            headers: Vec::new(),
+            body_lines: 0,
+            is_error: true,
+        };
+    }
+
+    let mut in_headers = false;
+    let mut in_body = false;
+    let mut body_count = 0usize;
+    let mut status_line: Option<String> = None;
+    let mut status_code: Option<u16> = None;
+    let mut headers: Vec<CurlHeader> = Vec::new();
+
+    for line in raw.lines() {
+        if is_progress_line(line) {
+            continue;
+        }
+
+        if !in_body && (line.starts_with("HTTP/1") || line.starts_with("HTTP/2")) {
+            in_headers = true;
+            let raw_status = line.to_string();
+            status_code = raw_status
+                .split_whitespace()
+                .nth(1)
+                .and_then(|s| s.parse().ok());
+            status_line = Some(format_status_line(line));
+            continue;
+        }
+
+        if in_headers && line.trim().is_empty() {
+            in_headers = false;
+            in_body = true;
+            continue;
+        }
+
+        if in_headers {
+            if let Some((name, value)) = line.split_once(':') {
+                headers.push(CurlHeader {
+                    name: name.trim().to_lowercase(),
+                    value: value.trim().to_string(),
+                });
+            }
+            continue;
+        }
+
+        if in_body || (!in_headers && status_line.is_none()) {
+            body_count += 1;
+        }
+    }
+
+    CurlResult {
+        status_line,
+        status_code,
+        headers,
+        body_lines: body_count,
+        is_error: false,
+    }
+}
 
 /// Filter `curl` output.
 ///
 /// Compact:
-/// - Show HTTP status line (`HTTP/2 200 ✓` or `HTTP/1.1 404 ✗`)
+/// - Show HTTP status line
 /// - Show key headers: content-type, content-length, location, x-request-id
 /// - Truncate body to 20 lines
-/// - Show curl errors as-is
 /// - Strip progress meter lines
 ///
 /// Verbose: 40 lines of body + all response headers.
@@ -18,12 +82,13 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    // Detect curl errors (no HTTP response)
     if is_curl_error(raw) {
+        let result = parse(raw);
         return FilterOutput {
             content: raw.to_string(),
             original_bytes,
             filtered_bytes: raw.len(),
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
@@ -41,19 +106,16 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     let mut response_headers: Vec<(String, String)> = Vec::new();
 
     for line in raw.lines() {
-        // Skip progress meter lines
         if is_progress_line(line) {
             continue;
         }
 
-        // Detect HTTP status line
         if !in_body && (line.starts_with("HTTP/1") || line.starts_with("HTTP/2")) {
             in_headers = true;
             status_line = Some(format_status_line(line));
             continue;
         }
 
-        // End of headers = blank line
         if in_headers && line.trim().is_empty() {
             in_headers = false;
             in_body = true;
@@ -61,7 +123,6 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
 
         if in_headers {
-            // Parse header
             if let Some((name, value)) = line.split_once(':') {
                 response_headers.push((name.trim().to_lowercase(), value.trim().to_string()));
             }
@@ -73,9 +134,9 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    // If no HTTP response detected, treat entire output as body
+    let result = parse(raw);
+
     if status_line.is_none() && !body_lines.is_empty() {
-        // plain body-only response
         let truncated = body_lines.len() > body_limit;
         let shown = &body_lines[..body_lines.len().min(body_limit)];
         for l in shown {
@@ -93,16 +154,15 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             content: out,
             original_bytes,
             filtered_bytes,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
-    // Status line
     if let Some(ref s) = status_line {
         out.push_str(s);
         out.push('\n');
     }
 
-    // Headers
     let key_headers = ["content-type", "content-length", "location", "x-request-id"];
     let headers_to_show: Vec<&(String, String)> = if verbosity == Verbosity::Verbose {
         response_headers.iter().collect()
@@ -119,7 +179,6 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    // Body
     if !body_lines.is_empty() {
         out.push('\n');
         let total = body_lines.len();
@@ -138,20 +197,18 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Check if the output contains only curl errors (no HTTP response).
 fn is_curl_error(raw: &str) -> bool {
     raw.lines()
         .filter(|l| !l.trim().is_empty())
         .all(|l| l.starts_with("curl: ("))
 }
 
-/// Check if a line is a curl progress meter line.
 fn is_progress_line(line: &str) -> bool {
     let t = line.trim();
-    // Progress lines start with "%" or contain "Dload" / "Upload" headers
     t.starts_with('%')
         || t.contains("Dload")
         || t.contains("--:--:--")
@@ -163,7 +220,6 @@ fn is_progress_line(line: &str) -> bool {
             && t.contains("--:--:--"))
 }
 
-/// Format an HTTP status line with a colored indicator.
 fn format_status_line(line: &str) -> String {
     let status_code = line.split_whitespace().nth(1).unwrap_or("0");
     let code: u16 = status_code.parse().unwrap_or(0);
@@ -272,5 +328,24 @@ Not Found
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE_WITH_HEADERS, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_extracts_status_code() {
+        let result = parse(SAMPLE_WITH_HEADERS);
+        assert_eq!(result.status_code, Some(200));
+        assert!(!result.is_error);
+    }
+
+    #[test]
+    fn parse_curl_error_sets_flag() {
+        let result = parse(SAMPLE_ERROR);
+        assert!(result.is_error);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_WITH_HEADERS, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

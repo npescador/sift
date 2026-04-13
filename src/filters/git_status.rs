@@ -1,3 +1,4 @@
+use crate::filters::types::GitStatusResult;
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Filter `git status` output into a compact grouped summary.
@@ -12,10 +13,24 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let mut staged: Vec<&str> = Vec::new();
-    let mut modified: Vec<&str> = Vec::new();
-    let mut untracked: Vec<&str> = Vec::new();
-    let mut branch_line = "";
+    let result = parse(raw);
+    let content = render(&result, verbosity);
+    let filtered_bytes = content.len();
+    let structured = serde_json::to_value(&result).ok();
+    FilterOutput {
+        content,
+        original_bytes,
+        filtered_bytes,
+        structured,
+    }
+}
+
+/// Parse raw `git status` output into a structured result.
+pub fn parse(raw: &str) -> GitStatusResult {
+    let mut staged: Vec<String> = Vec::new();
+    let mut modified: Vec<String> = Vec::new();
+    let mut untracked: Vec<String> = Vec::new();
+    let mut branch: Option<String> = None;
 
     let mut current_section = Section::None;
 
@@ -23,7 +38,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         let trimmed = line.trim();
 
         if trimmed.starts_with("On branch") || trimmed.starts_with("HEAD detached") {
-            branch_line = line;
+            branch = Some(line.to_string());
             continue;
         }
 
@@ -47,11 +62,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             continue;
         }
 
-        // Extract filename from lines like "  modified:   src/main.rs"
         let filename = trimmed
             .split_once(':')
             .map(|(_, f)| f.trim())
-            .unwrap_or(trimmed);
+            .unwrap_or(trimmed)
+            .to_string();
 
         match current_section {
             Section::Staged => staged.push(filename),
@@ -61,14 +76,19 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    if staged.is_empty() && modified.is_empty() && untracked.is_empty() {
-        let content = format!("{branch_line}\nnothing to commit, working tree clean\n");
-        let filtered_bytes = content.len();
-        return FilterOutput {
-            content,
-            original_bytes,
-            filtered_bytes,
-        };
+    GitStatusResult {
+        branch,
+        staged,
+        modified,
+        untracked,
+    }
+}
+
+/// Render the structured result as human-readable text.
+fn render(result: &GitStatusResult, verbosity: Verbosity) -> String {
+    if result.staged.is_empty() && result.modified.is_empty() && result.untracked.is_empty() {
+        let branch = result.branch.as_deref().unwrap_or("");
+        return format!("{branch}\nnothing to commit, working tree clean\n");
     }
 
     let max_files = match verbosity {
@@ -77,20 +97,15 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     };
 
     let mut out = String::new();
-    if !branch_line.is_empty() {
-        out.push_str(branch_line);
+    if let Some(ref branch) = result.branch {
+        out.push_str(branch);
         out.push('\n');
     }
-    format_group(&mut out, "staged", &staged, max_files);
-    format_group(&mut out, "modified", &modified, max_files);
-    format_group(&mut out, "untracked", &untracked, max_files);
+    format_group(&mut out, "staged", &result.staged, max_files);
+    format_group(&mut out, "modified", &result.modified, max_files);
+    format_group(&mut out, "untracked", &result.untracked, max_files);
 
-    let filtered_bytes = out.len();
-    FilterOutput {
-        content: out,
-        original_bytes,
-        filtered_bytes,
-    }
+    out
 }
 
 enum Section {
@@ -100,15 +115,14 @@ enum Section {
     Untracked,
 }
 
-fn format_group(out: &mut String, label: &str, files: &[&str], max_files: usize) {
+fn format_group(out: &mut String, label: &str, files: &[String], max_files: usize) {
     if files.is_empty() {
         return;
     }
     let shown = files.len().min(max_files);
     let remaining = files.len().saturating_sub(max_files);
 
-    let file_list: Vec<&str> = files[..shown].to_vec();
-    let names = file_list.join(", ");
+    let names = files[..shown].join(", ");
 
     if remaining > 0 {
         out.push_str(&format!(

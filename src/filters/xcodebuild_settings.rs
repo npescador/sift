@@ -1,3 +1,4 @@
+use crate::filters::types::{TargetBuildSettings, XcodebuildSettingsResult};
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Keys shown in Compact mode — high-signal iOS project identity.
@@ -37,6 +38,18 @@ const VERBOSE_EXTRA_KEYS: &[&str] = &[
     "LIBRARY_SEARCH_PATHS",
 ];
 
+pub fn parse(raw: &str) -> XcodebuildSettingsResult {
+    let raw_targets = parse_raw_targets(raw);
+    let targets = raw_targets
+        .into_iter()
+        .map(|t| TargetBuildSettings {
+            name: t.name,
+            settings: t.settings,
+        })
+        .collect();
+    XcodebuildSettingsResult { targets }
+}
+
 /// Filter `xcodebuild -showBuildSettings` output.
 ///
 /// Compact: ~16 high-signal iOS keys per target, grouped with a header.
@@ -59,15 +72,15 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         COMPACT_KEYS.to_vec()
     };
 
-    let targets = parse_targets(raw);
+    let result = parse(raw);
 
-    if targets.is_empty() {
+    if result.targets.is_empty() {
         return FilterOutput::passthrough(raw);
     }
 
     let mut out = String::new();
 
-    for target in &targets {
+    for target in &result.targets {
         // Header line: "Build settings — MyApp (Debug · iphonesimulator18.4)"
         let config = target
             .settings
@@ -93,7 +106,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             }
         }
 
-        if targets.len() > 1 {
+        if result.targets.len() > 1 {
             out.push('\n');
         }
     }
@@ -110,12 +123,13 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
 // ── Parsing ───────────────────────────────────────────────────────────────────
 
-struct TargetSettings {
+struct RawTargetSettings {
     name: String,
     settings: std::collections::HashMap<String, String>,
 }
@@ -131,9 +145,9 @@ struct TargetSettings {
 /// Build settings for action build and target MyAppTests:
 ///     ...
 /// ```
-fn parse_targets(raw: &str) -> Vec<TargetSettings> {
-    let mut targets: Vec<TargetSettings> = Vec::new();
-    let mut current: Option<TargetSettings> = None;
+fn parse_raw_targets(raw: &str) -> Vec<RawTargetSettings> {
+    let mut targets: Vec<RawTargetSettings> = Vec::new();
+    let mut current: Option<RawTargetSettings> = None;
 
     for line in raw.lines() {
         // Target header
@@ -142,7 +156,7 @@ fn parse_targets(raw: &str) -> Vec<TargetSettings> {
                 targets.push(prev);
             }
             let name = extract_target_name(line);
-            current = Some(TargetSettings {
+            current = Some(RawTargetSettings {
                 name,
                 settings: std::collections::HashMap::new(),
             });
@@ -202,7 +216,7 @@ Build settings for action build and target MyApp:
     SWIFT_VERSION = 6.0
     TARGETED_DEVICE_FAMILY = 1,2
     SWIFT_OPTIMIZATION_LEVEL = -Onone
-    PROVISIONING_PROFILE_SPECIFIER = 
+    PROVISIONING_PROFILE_SPECIFIER =
 
 Build settings for action build and target MyAppTests:
     CONFIGURATION = Debug
@@ -344,5 +358,22 @@ Build settings for action build and target MyAppTests:
         let out = filter(SAMPLE, Verbosity::Compact);
         // PROVISIONING_PROFILE_SPECIFIER is empty → should not appear
         assert!(!out.content.contains("PROVISIONING_PROFILE_SPECIFIER"));
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE);
+        assert_eq!(result.targets.len(), 2);
+        assert_eq!(result.targets[0].name, "MyApp");
+        assert_eq!(
+            result.targets[0].settings.get("SWIFT_VERSION"),
+            Some(&"6.0".to_string())
+        );
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

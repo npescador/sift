@@ -1,4 +1,99 @@
+use crate::filters::types::{CodesignResult, SecurityIdentity, SecurityIdentityResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> CodesignResult {
+    let key_fields = ["Identifier", "TeamIdentifier", "Format", "Signature size"];
+    let mut valid: Option<bool> = None;
+    let mut identifier: Option<String> = None;
+    let mut team: Option<String> = None;
+    let mut format: Option<String> = None;
+    let mut signature_size: Option<String> = None;
+    let mut errors: Vec<String> = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        if trimmed.contains("valid on disk") || trimmed.contains("satisfies its Designated") {
+            valid = Some(true);
+            continue;
+        }
+        if trimmed.contains("code object is not signed")
+            || trimmed.contains("CSSMERR_")
+            || trimmed.contains("failed to satisfy")
+        {
+            valid = Some(false);
+            continue;
+        }
+
+        if let Some(field_name) = key_fields.iter().find(|f| trimmed.starts_with(*f)) {
+            let value = trimmed
+                .split_once('=')
+                .map(|(_, v)| v.trim().to_string())
+                .unwrap_or_default();
+            match *field_name {
+                "Identifier" => identifier = Some(value),
+                "TeamIdentifier" => team = Some(value),
+                "Format" => format = Some(value),
+                "Signature size" => signature_size = Some(value),
+                _ => {}
+            }
+        }
+
+        if trimmed.starts_with("codesign:") || trimmed.starts_with("error:") {
+            errors.push(trimmed.to_string());
+        }
+    }
+
+    CodesignResult {
+        valid,
+        identifier,
+        team,
+        format,
+        signature_size,
+        errors,
+    }
+}
+
+pub fn parse_security(raw: &str) -> SecurityIdentityResult {
+    let mut identities: Vec<SecurityIdentity> = Vec::new();
+    let mut count = 0usize;
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        if trimmed.contains("valid identit") {
+            if let Some(n) = trimmed
+                .split_whitespace()
+                .next()
+                .and_then(|s| s.parse().ok())
+            {
+                count = n;
+            }
+            continue;
+        }
+        if trimmed
+            .chars()
+            .next()
+            .map(|c| c.is_ascii_digit())
+            .unwrap_or(false)
+        {
+            if let Some(identity) = parse_identity_line(trimmed) {
+                identities.push(identity);
+            }
+        }
+    }
+
+    if count == 0 {
+        count = identities.len();
+    }
+
+    SecurityIdentityResult { identities, count }
+}
 
 /// Filter `codesign` output.
 ///
@@ -15,6 +110,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
     let mut out = String::new();
     let key_fields = ["Identifier", "TeamIdentifier", "Format", "Signature size"];
 
@@ -25,7 +121,6 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             continue;
         }
 
-        // Verification result lines
         if trimmed.contains("valid on disk") || trimmed.contains("satisfies its Designated") {
             let path = trimmed.split(':').next().unwrap_or(trimmed);
             let fname = short_path(path);
@@ -44,14 +139,12 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             continue;
         }
 
-        // Display fields (from -d output)
         if let Some(field_name) = key_fields.iter().find(|f| trimmed.starts_with(*f)) {
             let value = trimmed.split_once('=').map(|(_, v)| v.trim()).unwrap_or("");
             out.push_str(&format!("  {field_name}: {value}\n"));
             continue;
         }
 
-        // Errors
         if trimmed.starts_with("codesign:") || trimmed.starts_with("error:") {
             out.push_str(&format!("\x1b[31m{trimmed}\x1b[0m\n"));
         }
@@ -66,13 +159,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
 /// Filter `security find-identity` output.
-///
-/// Compact: list identities with short hash (first 8 chars), name, and count.
-/// VeryVerbose+: raw passthrough.
 pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
     let original_bytes = raw.len();
 
@@ -80,6 +171,7 @@ pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse_security(raw);
     let mut out = String::new();
     let mut identity_count = 0usize;
 
@@ -90,13 +182,11 @@ pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
             continue;
         }
 
-        // Count line: "N valid identities found"
         if trimmed.contains("valid identit") {
             out.push_str(&format!("{trimmed}\n"));
             continue;
         }
 
-        // Identity lines: "  N) HASH "Name (Team)""
         if trimmed
             .chars()
             .next()
@@ -104,14 +194,17 @@ pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
             .unwrap_or(false)
         {
             if let Some(identity) = parse_identity_line(trimmed) {
-                out.push_str(&format!("  {identity}\n"));
+                out.push_str(&format!(
+                    "  {}…  {}\n",
+                    &identity.hash[..identity.hash.len().min(8)],
+                    identity.name
+                ));
                 identity_count += 1;
             }
             continue;
         }
     }
 
-    // If we got nothing useful, passthrough
     if identity_count == 0 && out.is_empty() {
         return FilterOutput::passthrough(raw);
     }
@@ -121,31 +214,20 @@ pub fn filter_security(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Parse an identity line into "SHORT_HASH name".
-fn parse_identity_line(line: &str) -> Option<String> {
-    // "1) ABCDEF1234567890ABCDEF1234567890ABCDEF12 "Apple Development: dev@example.com (ABCDEF1234)""
+fn parse_identity_line(line: &str) -> Option<SecurityIdentity> {
     let after_num = line.split_once(')').map(|(_, rest)| rest.trim())?;
     let mut parts = after_num.splitn(2, ' ');
-    let hash = parts.next()?.trim();
-    let name = parts.next()?.trim().trim_matches('"');
-
-    if hash.len() >= 8 {
-        let short_hash = &hash[..8];
-        Some(format!("{short_hash}…  {name}"))
-    } else {
-        Some(format!("{hash}  {name}"))
-    }
+    let hash = parts.next()?.trim().to_string();
+    let name = parts.next()?.trim().trim_matches('"').to_string();
+    Some(SecurityIdentity { hash, name })
 }
 
 fn short_path(path: &str) -> String {
-    let parts: Vec<&str> = path.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return path.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(path, 3)
 }
 
 #[cfg(test)]
@@ -236,5 +318,18 @@ Internal requirements count=1 size=112
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE_DESCRIBE, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_extracts_identifier() {
+        let result = parse(SAMPLE_DESCRIBE);
+        assert_eq!(result.identifier, Some("com.example.myapp".to_string()));
+        assert_eq!(result.team, Some("ABCDEF1234".to_string()));
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_DESCRIBE, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

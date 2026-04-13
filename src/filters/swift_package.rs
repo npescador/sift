@@ -1,4 +1,24 @@
+use crate::filters::types::{PackageEntry, SwiftPackageResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(input: &str) -> SwiftPackageResult {
+    let is_update = input.contains("Updating") || input.contains("updating");
+    let operation = if is_update { "Updated" } else { "Resolved" }.to_string();
+    let packages = parse_packages(input)
+        .into_iter()
+        .map(|p| PackageEntry {
+            name: p.name,
+            version: p.version,
+            url: p.url,
+        })
+        .collect();
+    let errors = collect_errors(input);
+    SwiftPackageResult {
+        operation,
+        packages,
+        errors,
+    }
+}
 
 /// Filter `swift package resolve` / `update` / `show-dependencies` output.
 ///
@@ -11,43 +31,41 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
     }
 
     let original_bytes = input.len();
-    let is_update = input.contains("Updating") || input.contains("updating");
-    let operation = if is_update { "Updated" } else { "Resolved" };
-
-    let packages = parse_packages(input);
-    let errors = collect_errors(input);
+    let result = parse(input);
 
     let mut out = String::new();
 
-    if !errors.is_empty() {
+    if !result.errors.is_empty() {
         out.push_str("❌ swift package failed\n\n");
-        for e in &errors {
+        for e in &result.errors {
             out.push_str(&format!("  {e}\n"));
         }
         return FilterOutput {
             filtered_bytes: out.len(),
             content: out,
             original_bytes,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
-    if packages.is_empty() {
+    if result.packages.is_empty() {
         out.push_str("✓ swift package — nothing to do\n");
         return FilterOutput {
             filtered_bytes: out.len(),
             content: out,
             original_bytes,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
     out.push_str(&format!(
         "📦 {} {} package{}\n",
-        operation,
-        packages.len(),
-        if packages.len() == 1 { "" } else { "s" }
+        result.operation,
+        result.packages.len(),
+        if result.packages.len() == 1 { "" } else { "s" }
     ));
 
-    for pkg in &packages {
+    for pkg in &result.packages {
         if matches!(verbosity, Verbosity::Verbose) && !pkg.url.is_empty() {
             out.push_str(&format!(
                 "  {:<32} {}  {}\n",
@@ -62,17 +80,16 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-#[derive(Debug)]
 struct PackageInfo {
     name: String,
     version: String,
     url: String,
 }
 
-/// Parse packages from SPM resolve/update/show-dependencies output.
 fn parse_packages(input: &str) -> Vec<PackageInfo> {
     let mut map: std::collections::BTreeMap<String, PackageInfo> =
         std::collections::BTreeMap::new();
@@ -80,7 +97,6 @@ fn parse_packages(input: &str) -> Vec<PackageInfo> {
     for line in input.lines() {
         let trimmed = line.trim();
 
-        // "Fetched https://github.com/org/name (1.2.3)" or from cache
         if trimmed.starts_with("Fetched ") || trimmed.starts_with("Fetching ") {
             if let Some(url) = extract_url(trimmed) {
                 let name = url_to_name(&url);
@@ -103,7 +119,6 @@ fn parse_packages(input: &str) -> Vec<PackageInfo> {
             continue;
         }
 
-        // "Updating https://github.com/org/name to 1.2.3"
         if trimmed.starts_with("Updating ") {
             if let Some(url) = extract_url(trimmed) {
                 let name = url_to_name(&url);
@@ -127,7 +142,6 @@ fn parse_packages(input: &str) -> Vec<PackageInfo> {
             continue;
         }
 
-        // "name @ version" — from show-dependencies JSON or plain text
         if trimmed.contains(" @ ") && !trimmed.contains("://") {
             if let Some((name, ver)) = trimmed.split_once(" @ ") {
                 let name = name.trim().to_string();
@@ -143,7 +157,6 @@ fn parse_packages(input: &str) -> Vec<PackageInfo> {
             continue;
         }
 
-        // Tree lines from show-dependencies: "└── swift-argument-parser 1.3.0"
         if trimmed.starts_with("└──") || trimmed.starts_with("├──") || trimmed.starts_with('│')
         {
             let clean = trimmed.trim_start_matches(|c: char| {
@@ -171,7 +184,6 @@ fn parse_packages(input: &str) -> Vec<PackageInfo> {
     map.into_values().collect()
 }
 
-/// Extract errors from SPM output.
 fn collect_errors(input: &str) -> Vec<String> {
     input
         .lines()
@@ -183,7 +195,6 @@ fn collect_errors(input: &str) -> Vec<String> {
         .collect()
 }
 
-/// Extract first https:// URL from a line.
 fn extract_url(line: &str) -> Option<String> {
     let start = line.find("https://")?;
     let rest = &line[start..];
@@ -191,7 +202,6 @@ fn extract_url(line: &str) -> Option<String> {
     Some(rest[..end].to_string())
 }
 
-/// Extract "(1.2.3)" version from end of a line.
 fn extract_parenthetical_version(line: &str) -> Option<String> {
     let start = line.rfind('(')?;
     let end = line.rfind(')')?;
@@ -202,8 +212,6 @@ fn extract_parenthetical_version(line: &str) -> Option<String> {
     }
 }
 
-/// Turn a GitHub URL into a short package name.
-/// "https://github.com/apple/swift-argument-parser" -> "swift-argument-parser"
 fn url_to_name(url: &str) -> String {
     url.trim_end_matches('/')
         .rsplit('/')
@@ -328,5 +336,18 @@ mod tests {
             url_to_name("https://github.com/realm/SwiftLint.git"),
             "SwiftLint"
         );
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(sample_resolve());
+        assert_eq!(result.packages.len(), 3);
+        assert_eq!(result.operation, "Resolved");
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(sample_resolve(), Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

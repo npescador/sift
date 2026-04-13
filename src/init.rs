@@ -15,18 +15,18 @@ use anyhow::{Context, Result};
 const BLOCK_START: &str = "# BEGIN sift hooks";
 const BLOCK_END: &str = "# END sift hooks";
 
-/// Shell hook functions injected into the rc file.
-///
-/// Using `command sift` (instead of bare `sift`) prevents re-entrancy
-/// if the user ever wraps sift itself in a shell function. Rust's
-/// `std::process::Command` already bypasses shell functions, but being
-/// explicit here is defensive and correct.
-const SHELL_HOOK_BODY: &str = r#"
-git()          { command sift git "$@"; }
-xcodebuild()   { command sift xcodebuild "$@"; }
-xcrun()        { command sift xcrun "$@"; }
-swiftlint()    { command sift swiftlint "$@"; }
-"#;
+/// All commands that can be wrapped by shell hooks.
+const ALL_HOOK_COMMANDS: &[&str] = &["git", "xcodebuild", "xcrun", "swiftlint"];
+
+/// CI environment variables that disable hooks when present.
+const CI_ENV_VARS: &[&str] = &[
+    "CI",
+    "GITHUB_ACTIONS",
+    "JENKINS_URL",
+    "BUILDKITE",
+    "CIRCLECI",
+    "TRAVIS",
+];
 
 /// CLAUDE.md content injected / appended to the project file.
 const CLAUDE_MD_BLOCK_START: &str = "<!-- BEGIN sift instructions -->";
@@ -89,6 +89,9 @@ pub struct InitOptions {
     pub xcode_project: bool,
     pub show: bool,
     pub uninstall: bool,
+    /// Optional comma-separated list of commands to wrap (e.g. "git,xcodebuild").
+    /// When `None`, all supported commands are wrapped.
+    pub commands: Option<String>,
 }
 
 /// Entry point called from `main.rs`.
@@ -107,7 +110,8 @@ pub fn run(opts: InitOptions) -> Result<()> {
     }
 
     if opts.shell {
-        install_shell_hook()?;
+        let commands = resolve_hook_commands(opts.commands.as_deref())?;
+        install_shell_hook(&commands)?;
     }
     if opts.claude {
         install_claude_md()?;
@@ -122,13 +126,40 @@ pub fn run(opts: InitOptions) -> Result<()> {
     Ok(())
 }
 
+/// Resolve which commands to wrap from `--commands` flag or default to all.
+fn resolve_hook_commands(commands_arg: Option<&str>) -> Result<Vec<String>> {
+    match commands_arg {
+        Some(list) => {
+            let mut commands = Vec::new();
+            for cmd in list.split(',') {
+                let cmd = cmd.trim();
+                if cmd.is_empty() {
+                    continue;
+                }
+                if !ALL_HOOK_COMMANDS.contains(&cmd) {
+                    anyhow::bail!(
+                        "unsupported hook command: `{cmd}` (supported: {})",
+                        ALL_HOOK_COMMANDS.join(", ")
+                    );
+                }
+                commands.push(cmd.to_string());
+            }
+            if commands.is_empty() {
+                anyhow::bail!("--commands requires at least one command");
+            }
+            Ok(commands)
+        }
+        None => Ok(ALL_HOOK_COMMANDS.iter().map(|s| s.to_string()).collect()),
+    }
+}
+
 // ── Shell hook ───────────────────────────────────────────────────────────────
 
-fn install_shell_hook() -> Result<()> {
+fn install_shell_hook(commands: &[String]) -> Result<()> {
     let rc_path = detect_rc_file()?;
     let current = fs::read_to_string(&rc_path).unwrap_or_default();
 
-    let block = build_shell_block();
+    let block = build_shell_block(commands);
 
     let new_content = if current.contains(BLOCK_START) {
         replace_block(&current, BLOCK_START, BLOCK_END, &block)
@@ -139,9 +170,15 @@ fn install_shell_hook() -> Result<()> {
     fs::write(&rc_path, new_content)
         .with_context(|| format!("failed to write {}", rc_path.display()))?;
 
-    println!("✅ Shell hooks installed in {}", rc_path.display());
+    let cmd_list = commands.join(", ");
+    println!("Shell hooks installed in {}", rc_path.display());
     println!();
-    println!("   Wrapped commands: git, xcodebuild, xcrun, swiftlint");
+    println!("   Wrapped commands: {cmd_list}");
+    println!(
+        "   Hooks are disabled in CI environments ({}).",
+        CI_ENV_VARS.join(", ")
+    );
+    println!("   Use `command <cmd>` to bypass sift (e.g. `command git status`).");
     println!();
     println!("   Reload your shell:");
     println!("     source {}", rc_path.display());
@@ -149,8 +186,33 @@ fn install_shell_hook() -> Result<()> {
     Ok(())
 }
 
-fn build_shell_block() -> String {
-    format!("{BLOCK_START}\n# Managed by `sift init --shell` — do not edit manually{SHELL_HOOK_BODY}{BLOCK_END}\n")
+fn build_shell_block(commands: &[String]) -> String {
+    // Build the CI guard condition: [ -z "$CI" ] && [ -z "$GITHUB_ACTIONS" ] && ...
+    let ci_guard = CI_ENV_VARS
+        .iter()
+        .map(|var| format!("[ -z \"${var}\" ]"))
+        .collect::<Vec<_>>()
+        .join(" && ");
+
+    // Build function definitions, one per command
+    let functions: String = commands
+        .iter()
+        .map(|cmd| {
+            let padding = " ".repeat(14_usize.saturating_sub(cmd.len() + 2));
+            format!("  {cmd}(){padding}{{ command sift {cmd} \"$@\"; }}")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    format!(
+        "{BLOCK_START}\n\
+         # Managed by `sift init --shell` — do not edit manually\n\
+         # Disabled in CI environments. Use `command <cmd>` to bypass.\n\
+         if {ci_guard}; then\n\
+         {functions}\n\
+         fi\n\
+         {BLOCK_END}\n"
+    )
 }
 
 fn detect_rc_file() -> Result<PathBuf> {
@@ -577,6 +639,10 @@ fn remove_block(source: &str, start: &str, end: &str) -> String {
 mod tests {
     use super::*;
 
+    fn all_hook_commands() -> Vec<String> {
+        ALL_HOOK_COMMANDS.iter().map(|s| s.to_string()).collect()
+    }
+
     #[test]
     fn replace_block_substitutes_existing_block() {
         let source = "before\n# BEGIN sift hooks\nold content\n# END sift hooks\nafter\n";
@@ -616,7 +682,8 @@ mod tests {
 
     #[test]
     fn build_shell_block_contains_all_commands() {
-        let block = build_shell_block();
+        let all = all_hook_commands();
+        let block = build_shell_block(&all);
         assert!(block.contains(BLOCK_START));
         assert!(block.contains(BLOCK_END));
         assert!(block.contains("git()"));
@@ -626,13 +693,52 @@ mod tests {
     }
 
     #[test]
+    fn build_shell_block_contains_ci_guard() {
+        let all = all_hook_commands();
+        let block = build_shell_block(&all);
+        assert!(block.contains("[ -z \"$CI\" ]"));
+        assert!(block.contains("[ -z \"$GITHUB_ACTIONS\" ]"));
+        assert!(block.contains("if "));
+        assert!(block.contains("fi"));
+    }
+
+    #[test]
+    fn build_shell_block_with_subset_of_commands() {
+        let cmds = vec!["git".to_string()];
+        let block = build_shell_block(&cmds);
+        assert!(block.contains("git()"));
+        assert!(!block.contains("xcodebuild()"));
+        assert!(!block.contains("xcrun()"));
+        assert!(!block.contains("swiftlint()"));
+    }
+
+    #[test]
     fn replace_then_remove_is_idempotent() {
         let original = "top\n";
-        let block = build_shell_block();
+        let all = all_hook_commands();
+        let block = build_shell_block(&all);
         let with_block = replace_block(original, BLOCK_START, BLOCK_END, &block);
         let without = remove_block(&with_block, BLOCK_START, BLOCK_END);
         assert!(!without.contains(BLOCK_START));
         assert!(without.contains("top"));
+    }
+
+    #[test]
+    fn resolve_hook_commands_defaults_to_all() {
+        let cmds = resolve_hook_commands(None).unwrap();
+        assert_eq!(cmds.len(), ALL_HOOK_COMMANDS.len());
+    }
+
+    #[test]
+    fn resolve_hook_commands_accepts_subset() {
+        let cmds = resolve_hook_commands(Some("git,xcrun")).unwrap();
+        assert_eq!(cmds, vec!["git", "xcrun"]);
+    }
+
+    #[test]
+    fn resolve_hook_commands_rejects_unknown() {
+        let err = resolve_hook_commands(Some("git,npm"));
+        assert!(err.is_err());
     }
 
     #[test]

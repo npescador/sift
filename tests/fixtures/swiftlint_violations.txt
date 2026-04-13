@@ -1,0 +1,8 @@
+/Users/dev/MyApp/ContentView.swift:42:16: warning: line_length: Line should be 120 characters or less: currently 135 characters
+/Users/dev/MyApp/ContentView.swift:45:8: warning: trailing_whitespace: Lines should not have trailing whitespace: current line has 1 trailing whitespace characters
+/Users/dev/MyApp/LoginView.swift:15:5: warning: line_length: Line should be 120 characters or less: currently 142 characters
+/Users/dev/MyApp/LoginView.swift:88:12: error: force_cast: Force casts should be avoided
+/Users/dev/MyApp/PaymentService.swift:33:4: error: force_cast: Force casts should be avoided
+/Users/dev/MyApp/PaymentService.swift:55:22: warning: trailing_whitespace: Lines should not have trailing whitespace: current line has 2 trailing whitespace characters
+/Users/dev/MyApp/NetworkLayer.swift:12:18: warning: line_length: Line should be 120 characters or less: currently 156 characters
+Done linting! Found 7 violations, 2 serious in 4 files.

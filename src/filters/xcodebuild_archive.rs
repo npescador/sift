@@ -1,4 +1,40 @@
+use crate::filters::types::{Diagnostic, Severity, XcodebuildArchiveResult};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> XcodebuildArchiveResult {
+    let succeeded = raw.contains("** ARCHIVE SUCCEEDED **");
+    let errors_map = collect_errors(raw);
+    let warnings_count = raw.lines().filter(|l| l.contains(": warning:")).count();
+    let archive_path = extract_archive_path(raw);
+    let scheme = extract_flag(raw, "-scheme");
+    let configuration = extract_flag(raw, "-configuration");
+    let team = extract_signing_team(raw);
+    let identity = extract_signing_identity(raw);
+
+    let errors: Vec<Diagnostic> = errors_map
+        .into_iter()
+        .flat_map(|(file, messages)| {
+            messages.into_iter().map(move |msg| Diagnostic {
+                file: file.clone(),
+                line: None,
+                column: None,
+                severity: Severity::Error,
+                message: msg,
+            })
+        })
+        .collect();
+
+    XcodebuildArchiveResult {
+        succeeded,
+        archive_path,
+        scheme,
+        configuration,
+        team,
+        identity,
+        errors,
+        warnings_count,
+    }
+}
 
 /// Filter `xcodebuild archive` output.
 ///
@@ -12,61 +48,48 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let succeeded = raw.contains("** ARCHIVE SUCCEEDED **");
-    let failed = raw.contains("** ARCHIVE FAILED **");
-
-    let errors = collect_errors(raw);
-    let warnings_count = raw.lines().filter(|l| l.contains(": warning:")).count();
-    let archive_path = extract_archive_path(raw);
-    let scheme = extract_flag(raw, "-scheme");
-    let configuration = extract_flag(raw, "-configuration");
-    let team = extract_signing_team(raw);
-    let identity = extract_signing_identity(raw);
+    let result = parse(raw);
+    let errors_map = collect_errors(raw);
 
     let mut out = String::new();
 
-    // Result header
-    if succeeded {
+    if result.succeeded {
         out.push_str("\x1b[32mARCHIVE SUCCEEDED\x1b[0m");
-    } else if failed {
+    } else if raw.contains("** ARCHIVE FAILED **") {
         out.push_str("\x1b[31mARCHIVE FAILED\x1b[0m");
     } else {
         out.push_str("ARCHIVE");
     }
 
-    // Scheme + config on same line
-    match (&scheme, &configuration) {
+    match (&result.scheme, &result.configuration) {
         (Some(s), Some(c)) => out.push_str(&format!("  {s}  [{c}]\n")),
         (Some(s), None) => out.push_str(&format!("  {s}\n")),
         _ => out.push('\n'),
     }
 
-    // Archive path (most important on success)
-    if let Some(path) = &archive_path {
+    if let Some(path) = &result.archive_path {
         let short = shorten_path(path);
         out.push_str(&format!("  📦 {short}\n"));
     }
 
-    // Signing info
-    if let Some(t) = &team {
+    if let Some(t) = &result.team {
         out.push_str(&format!("  🔑 Team: {t}\n"));
     }
-    if let Some(id) = &identity {
+    if let Some(id) = &result.identity {
         out.push_str(&format!("  🔐 {id}\n"));
     }
 
-    // Verbose: warnings count
-    if matches!(verbosity, Verbosity::Verbose) && warnings_count > 0 {
+    if matches!(verbosity, Verbosity::Verbose) && result.warnings_count > 0 {
         out.push_str(&format!(
-            "  ⚠  {warnings_count} warning{}\n",
-            if warnings_count == 1 { "" } else { "s" }
+            "  ⚠  {} warning{}\n",
+            result.warnings_count,
+            if result.warnings_count == 1 { "" } else { "s" }
         ));
     }
 
-    // Errors (always shown on failure)
-    if !errors.is_empty() {
+    if !errors_map.is_empty() {
         out.push('\n');
-        for (file, messages) in &errors {
+        for (file, messages) in &errors_map {
             let short_file = shorten_path(file);
             out.push_str(&format!(
                 "{short_file} ({} error{})\n",
@@ -83,10 +106,10 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         filtered_bytes: out.len(),
         content: out,
         original_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Collect errors grouped by file: BTreeMap<file, Vec<message>>.
 fn collect_errors(raw: &str) -> std::collections::BTreeMap<String, Vec<String>> {
     let mut map: std::collections::BTreeMap<String, Vec<String>> =
         std::collections::BTreeMap::new();
@@ -99,12 +122,10 @@ fn collect_errors(raw: &str) -> std::collections::BTreeMap<String, Vec<String>> 
     map
 }
 
-/// Split `path/file.swift:L:C: error: message` into (file, message).
 fn split_diagnostic(line: &str) -> (String, String) {
     if let Some(idx) = line.find(": error:") {
         let path_part = &line[..idx];
         let msg_part = line[idx + 8..].trim().to_string();
-        // Strip line:col suffix from path
         let file = path_part
             .rsplitn(3, ':')
             .last()
@@ -115,9 +136,7 @@ fn split_diagnostic(line: &str) -> (String, String) {
     (String::new(), line.to_string())
 }
 
-/// Extract `-scheme <value>` or `-scheme=<value>` from raw xcodebuild output header.
 fn extract_flag(raw: &str, flag: &str) -> Option<String> {
-    // Look for lines like `Build settings from command line:` or the actual command echo
     for line in raw.lines().take(30) {
         let line = line.trim();
         if let Some(pos) = line.find(flag) {
@@ -133,11 +152,7 @@ fn extract_flag(raw: &str, flag: &str) -> Option<String> {
             }
         }
     }
-    // Fallback: scan whole output for "Build settings for action archive"
     for line in raw.lines() {
-        if line.contains("Build settings for action archive") {
-            // next line often has "    scheme = ..."
-        }
         if line.trim().starts_with("SCHEME") || line.trim().starts_with("scheme") {
             if let Some(val) = line.split('=').nth(1) {
                 let v = val.trim().to_string();
@@ -150,9 +165,6 @@ fn extract_flag(raw: &str, flag: &str) -> Option<String> {
     None
 }
 
-/// Extract archive path from lines like:
-/// `Archive saved at .../MyApp.xcarchive`
-/// or `ARCHIVE_PRODUCTS_PATH = /Users/.../MyApp.xcarchive`
 fn extract_archive_path(raw: &str) -> Option<String> {
     for line in raw.lines() {
         let trimmed = line.trim();
@@ -166,7 +178,6 @@ fn extract_archive_path(raw: &str) -> Option<String> {
                 return Some(val.trim().to_string());
             }
         }
-        // fastlane / xcodebuild often prints: `/path/to/MyApp.xcarchive`
         if trimmed.ends_with(".xcarchive") && trimmed.starts_with('/') {
             return Some(trimmed.to_string());
         }
@@ -174,11 +185,9 @@ fn extract_archive_path(raw: &str) -> Option<String> {
     None
 }
 
-/// Extract code signing team from signing log lines.
 fn extract_signing_team(raw: &str) -> Option<String> {
     for line in raw.lines() {
         let t = line.trim();
-        // "Signing Identity: ...\n  Team: NAME (ID)"
         if t.starts_with("Team:") || t.starts_with("DEVELOPMENT_TEAM") {
             let val = t
                 .split_once('=')
@@ -194,7 +203,6 @@ fn extract_signing_team(raw: &str) -> Option<String> {
     None
 }
 
-/// Extract code signing identity (e.g. "Apple Distribution: ...").
 fn extract_signing_identity(raw: &str) -> Option<String> {
     for line in raw.lines() {
         let t = line.trim();
@@ -202,7 +210,6 @@ fn extract_signing_identity(raw: &str) -> Option<String> {
             return t.split_once(':').map(|(_, v)| v.trim().to_string());
         }
         if t.contains("Apple Distribution:") || t.contains("iPhone Distribution:") {
-            // grab just the identity string
             let start = t
                 .find("Apple Distribution:")
                 .or_else(|| t.find("iPhone Distribution:"))
@@ -214,7 +221,6 @@ fn extract_signing_identity(raw: &str) -> Option<String> {
     None
 }
 
-/// Shorten an absolute path: replace $HOME with `~`, keep last 3 components.
 fn shorten_path(path: &str) -> String {
     let home = std::env::var("HOME").unwrap_or_default();
     let p = if !home.is_empty() {
@@ -222,7 +228,6 @@ fn shorten_path(path: &str) -> String {
     } else {
         path.to_string()
     };
-    // Keep last 3 path components for readability
     let parts: Vec<&str> = p.split('/').collect();
     if parts.len() > 4 {
         format!("…/{}", parts[parts.len() - 3..].join("/"))
@@ -330,5 +335,19 @@ mod tests {
         let short = shorten_path(p);
         assert!(short.contains("MyApp.xcarchive"));
         assert!(short.starts_with('…'));
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(sample_success());
+        assert!(result.succeeded);
+        assert!(result.archive_path.is_some());
+        assert!(result.identity.is_some());
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(sample_success(), Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

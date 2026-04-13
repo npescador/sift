@@ -1,11 +1,45 @@
 use std::collections::BTreeMap;
 
+use crate::filters::types::{FileMatches, GrepResult};
 use crate::filters::{FilterOutput, Verbosity};
 
-/// Maximum matches shown per file in Compact mode.
 const COMPACT_MAX_PER_FILE: usize = 3;
-/// Maximum total matches shown in Compact mode before truncation.
 const COMPACT_MAX_TOTAL: usize = 30;
+
+pub fn parse(raw: &str) -> GrepResult {
+    let mut by_file: BTreeMap<String, Vec<String>> = BTreeMap::new();
+
+    for line in raw.lines() {
+        if line.is_empty() {
+            continue;
+        }
+        let (file, content) = split_grep_line(line);
+        by_file
+            .entry(file.to_string())
+            .or_default()
+            .push(content.to_string());
+    }
+
+    let total_matches: usize = by_file.values().map(|v| v.len()).sum();
+    let file_count = by_file.len();
+    let files: Vec<FileMatches> = by_file
+        .into_iter()
+        .map(|(file, matches)| {
+            let count = matches.len();
+            FileMatches {
+                file,
+                matches,
+                count,
+            }
+        })
+        .collect();
+
+    GrepResult {
+        files,
+        total_matches,
+        file_count,
+    }
+}
 
 /// Filter `grep` / `rg` output — group by file, deduplicate, cap results.
 ///
@@ -19,18 +53,9 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    // Group matches by file. Supports "file:line:match" and "file:match" formats.
-    let mut by_file: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    let result = parse(raw);
 
-    for line in raw.lines() {
-        if line.is_empty() {
-            continue;
-        }
-        let (file, content) = split_grep_line(line);
-        by_file.entry(file).or_default().push(content);
-    }
-
-    if by_file.is_empty() {
+    if result.file_count == 0 {
         return FilterOutput::passthrough(raw);
     }
 
@@ -45,27 +70,25 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     let mut out = String::new();
     let mut total_shown = 0;
-    let mut total_matches = 0;
     let mut truncated = false;
 
-    for (file, matches) in &by_file {
-        total_matches += matches.len();
-
+    for file_matches in &result.files {
         if total_shown >= max_total {
             truncated = true;
             continue;
         }
 
-        let show = matches.len().min(max_per_file);
-        let remaining = matches.len().saturating_sub(max_per_file);
+        let show = file_matches.count.min(max_per_file);
+        let remaining = file_matches.count.saturating_sub(max_per_file);
 
         out.push_str(&format!(
-            "\x1b[1m{file}\x1b[0m ({} match{})\n",
-            matches.len(),
-            if matches.len() == 1 { "" } else { "es" }
+            "\x1b[1m{}\x1b[0m ({} match{})\n",
+            file_matches.file,
+            file_matches.count,
+            if file_matches.count == 1 { "" } else { "es" }
         ));
 
-        for m in &matches[..show] {
+        for m in &file_matches.matches[..show] {
             out.push_str(&format!("  {m}\n"));
             total_shown += 1;
             if total_shown >= max_total {
@@ -82,11 +105,12 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
-    let file_count = by_file.len();
     out.push_str(&format!(
-        "\n{total_matches} match{} across {file_count} file{}\n",
-        if total_matches == 1 { "" } else { "es" },
-        if file_count == 1 { "" } else { "s" },
+        "\n{} match{} across {} file{}\n",
+        result.total_matches,
+        if result.total_matches == 1 { "" } else { "es" },
+        result.file_count,
+        if result.file_count == 1 { "" } else { "s" },
     ));
 
     if truncated {
@@ -98,17 +122,11 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Split a grep/rg output line into (file, content).
-///
-/// Handles formats:
-/// - `file:line_number:content`  (rg default)
-/// - `file:content`              (grep default)
-/// - `content`                   (no file prefix, e.g. piped input)
 fn split_grep_line(line: &str) -> (&str, &str) {
-    // rg outputs "file:linenum:content" — find first colon that looks like a path
     let mut colon_count = 0;
     let mut first_colon = None;
 
@@ -118,7 +136,6 @@ fn split_grep_line(line: &str) -> (&str, &str) {
             if first_colon.is_none() {
                 first_colon = Some(i);
             }
-            // If second colon and the part between looks like a line number, use first colon
             if colon_count == 2 {
                 let between = &line[first_colon.unwrap() + 1..i];
                 if between.chars().all(|c| c.is_ascii_digit()) {
@@ -175,5 +192,18 @@ src/executor.rs:31:pub fn execute(program: &str, args: &[String]) -> Result<Exec
         let (file, content) = split_grep_line("src/main.rs:let x = 1;");
         assert_eq!(file, "src/main.rs");
         assert_eq!(content, "let x = 1;");
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_RG);
+        assert_eq!(result.file_count, 3);
+        assert_eq!(result.total_matches, 5);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_RG, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

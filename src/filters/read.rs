@@ -1,7 +1,18 @@
+use crate::filters::types::ReadResult;
 use crate::filters::{FilterOutput, Verbosity};
 
 /// Default max lines shown in Compact mode.
 const COMPACT_MAX_LINES: usize = 100;
+
+pub fn parse(raw: &str) -> ReadResult {
+    let is_binary = is_likely_binary(raw);
+    let total_lines = raw.lines().count();
+    ReadResult {
+        total_lines,
+        shown_lines: total_lines,
+        is_binary,
+    }
+}
 
 /// Filter `cat` / file read output — safe truncation with line range support.
 ///
@@ -15,14 +26,17 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
+    let result = parse(raw);
+
     // Detect binary content early — don't attempt to display it
-    if is_likely_binary(raw) {
+    if result.is_binary {
         let content = "(binary file — use --raw to see raw bytes)\n".to_string();
         let filtered_bytes = content.len();
         return FilterOutput {
             content,
             original_bytes,
             filtered_bytes,
+            structured: serde_json::to_value(&result).ok(),
         };
     }
 
@@ -32,15 +46,21 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         _ => usize::MAX,
     };
 
-    let lines: Vec<&str> = raw.lines().collect();
-    let total_lines = lines.len();
+    let total_lines = result.total_lines;
 
     if total_lines <= max_lines {
         return FilterOutput::passthrough(raw);
     }
 
+    let lines: Vec<&str> = raw.lines().collect();
     let shown: Vec<&str> = lines[..max_lines].to_vec();
     let remaining = total_lines - max_lines;
+
+    let result = ReadResult {
+        total_lines,
+        shown_lines: max_lines,
+        is_binary: false,
+    };
 
     let mut out = shown.join("\n");
     out.push('\n');
@@ -54,6 +74,7 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
@@ -93,5 +114,26 @@ mod tests {
         let content = "hello\0world";
         let out = filter(content, Verbosity::Compact);
         assert!(out.content.contains("binary file"));
+    }
+
+    #[test]
+    fn parse_long_file_returns_structured_data() {
+        let content: String = (0..200).map(|i| format!("line {i}\n")).collect();
+        let result = parse(&content);
+        assert_eq!(result.total_lines, 200);
+        assert!(!result.is_binary);
+    }
+
+    #[test]
+    fn structured_is_some_on_truncated_filter() {
+        let content: String = (0..200).map(|i| format!("line {i}\n")).collect();
+        let out = filter(&content, Verbosity::Compact);
+        assert!(out.structured.is_some());
+    }
+
+    #[test]
+    fn structured_is_some_on_binary_filter() {
+        let out = filter("hello\0world", Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

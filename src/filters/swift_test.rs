@@ -1,4 +1,57 @@
+use crate::filters::types::{SwiftTestResult, TestFailure};
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(raw: &str) -> SwiftTestResult {
+    let mut passed = 0usize;
+    let mut failed = 0usize;
+    let mut failures: Vec<TestFailure> = Vec::new();
+    let mut current_name = String::new();
+    let mut current_message = String::new();
+    let mut current_location = String::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim();
+
+        if trimmed.contains("Test Case '") && trimmed.contains("' started.") {
+            current_name = extract_test_name(trimmed);
+            current_message.clear();
+            current_location.clear();
+        } else if trimmed.contains("' passed (") {
+            current_name.clear();
+            passed += 1;
+        } else if trimmed.contains("' failed (") {
+            failed += 1;
+            if !current_name.is_empty() {
+                failures.push(TestFailure {
+                    name: current_name.clone(),
+                    message: current_message.clone(),
+                    location: current_location.clone(),
+                });
+                current_name.clear();
+            }
+        } else if trimmed.contains(": error:")
+            && trimmed.contains("XCTAssert")
+            && current_message.is_empty()
+        {
+            current_message = trimmed
+                .split(": error:")
+                .nth(1)
+                .unwrap_or(trimmed)
+                .trim()
+                .to_string();
+            if let Some(loc) = trimmed.split(": error:").next() {
+                current_location = shorten_path(loc);
+            }
+        }
+    }
+
+    SwiftTestResult {
+        succeeded: failed == 0,
+        passed,
+        failed,
+        failures,
+    }
+}
 
 /// Filter `swift test` output (SPM).
 ///
@@ -13,72 +66,12 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let mut passed = 0usize;
-    let mut failed = 0usize;
-    let mut failures: Vec<FailedTest> = Vec::new();
-    let mut current_failure: Option<FailedTest> = None;
-
-    for line in raw.lines() {
-        let trimmed = line.trim();
-
-        if trimmed.contains("Test Case '") && trimmed.contains("' started.") {
-            // Pre-create a failure entry; discard if the test passes
-            if let Some(f) = current_failure.take() {
-                failures.push(f);
-            }
-            let name = extract_test_name(trimmed);
-            current_failure = Some(FailedTest {
-                name,
-                location: String::new(),
-                message: String::new(),
-            });
-        } else if trimmed.contains("' passed (") {
-            // Test passed — discard the pre-created entry
-            current_failure = None;
-            passed += 1;
-        } else if trimmed.contains("' failed (") {
-            // Test failed — keep the pre-created entry and count it
-            failed += 1;
-            if current_failure.is_none() {
-                let name = extract_test_name(trimmed);
-                current_failure = Some(FailedTest {
-                    name,
-                    location: String::new(),
-                    message: String::new(),
-                });
-            }
-        } else if trimmed.contains(": error:") && trimmed.contains("XCTAssert") {
-            if let Some(ref mut f) = current_failure {
-                if f.message.is_empty() {
-                    let msg = trimmed
-                        .split(": error:")
-                        .nth(1)
-                        .unwrap_or(trimmed)
-                        .trim()
-                        .to_string();
-                    f.message = msg;
-                    if verbosity == Verbosity::Verbose {
-                        if let Some(loc) = trimmed.split(": error:").next() {
-                            f.location = shorten_path(loc);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    if let Some(f) = current_failure.take() {
-        // Only keep if we counted it as failed
-        if failed > failures.len() {
-            failures.push(f);
-        }
-    }
-
-    let total = passed + failed;
+    let result = parse(raw);
+    let total = result.passed + result.failed;
 
     let mut out = String::new();
 
-    if failed == 0 {
+    if result.failed == 0 {
         out.push_str(&format!(
             "\x1b[32mTEST PASSED\x1b[0m  {total} test{}\n",
             if total == 1 { "" } else { "s" }
@@ -86,13 +79,15 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
     } else {
         out.push_str(&format!(
             "\x1b[31mTEST FAILED\x1b[0m  {total} test{} — \
-             \x1b[32m{passed} passed\x1b[0m, \x1b[31m{failed} failed\x1b[0m\n",
-            if total == 1 { "" } else { "s" }
+             \x1b[32m{} passed\x1b[0m, \x1b[31m{} failed\x1b[0m\n",
+            if total == 1 { "" } else { "s" },
+            result.passed,
+            result.failed,
         ));
 
-        if !failures.is_empty() {
+        if !result.failures.is_empty() {
             out.push('\n');
-            for f in &failures {
+            for f in &result.failures {
                 out.push_str(&format!("  \x1b[31m✗\x1b[0m {}\n", f.name));
                 if !f.message.is_empty() {
                     out.push_str(&format!("    {}\n", f.message));
@@ -109,21 +104,14 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-struct FailedTest {
-    name: String,
-    location: String,
-    message: String,
-}
-
-/// Extract the test name from a "Test Case '...' failed" line.
 fn extract_test_name(line: &str) -> String {
     if let Some(start) = line.find("'-[") {
         if let Some(end) = line[start..].find(']') {
             let inner = &line[start + 2..start + end + 1];
-            // "-[Module.Suite testMethod]" → "Suite.testMethod"
             let without_brackets = inner.trim_matches(|c| c == '[' || c == ']');
             if let Some((suite, test)) = without_brackets.split_once(' ') {
                 let short_suite = suite.split('.').next_back().unwrap_or(suite);
@@ -139,14 +127,8 @@ fn extract_test_name(line: &str) -> String {
         .to_string()
 }
 
-/// Shorten a path+location string to last 3 path components.
 fn shorten_path(loc: &str) -> String {
-    // loc could be "/path/to/File.swift:LINE"
-    let parts: Vec<&str> = loc.split('/').filter(|s| !s.is_empty()).collect();
-    if parts.len() <= 3 {
-        return loc.to_string();
-    }
-    parts[parts.len() - 3..].join("/")
+    super::util::short_path(loc, 3)
 }
 
 #[cfg(test)]
@@ -236,5 +218,20 @@ Executed 2 tests, with 1 failure (0 unexpected) in 0.003 (0.005) seconds.
         let out = filter(SAMPLE_PASS, Verbosity::Compact);
         assert!(!out.content.contains("Test Case"));
         assert!(!out.content.contains("Test Suite"));
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_FAIL);
+        assert!(!result.succeeded);
+        assert_eq!(result.passed, 1);
+        assert_eq!(result.failed, 1);
+        assert_eq!(result.failures.len(), 1);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_FAIL, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

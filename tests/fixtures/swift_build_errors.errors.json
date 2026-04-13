@@ -1,0 +1,9 @@
+{
+  "errors": [
+    {"text": "use of unresolved identifier", "severity": "error"},
+    {"text": "cannot convert value", "severity": "error"},
+    {"text": "BUILD FAILED", "severity": "critical"},
+    {"text": "ContentView.swift", "severity": "error"},
+    {"text": "NetworkClient.swift", "severity": "error"}
+  ]
+}

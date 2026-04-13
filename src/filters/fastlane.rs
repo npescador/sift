@@ -1,4 +1,26 @@
+use crate::filters::types::FastlaneResult;
 use crate::filters::{FilterOutput, Verbosity};
+
+pub fn parse(input: &str) -> FastlaneResult {
+    let lines: Vec<&str> = input.lines().collect();
+    let lane = extract_lane(&lines);
+    let issues = extract_issues(&lines);
+    let steps = extract_steps(&lines);
+    let result = extract_result(&lines);
+    let total_time = extract_total_time(&lines);
+    let succeeded = result
+        .as_deref()
+        .map(|r| r.contains("completed successfully"))
+        .unwrap_or(false);
+
+    FastlaneResult {
+        lane,
+        succeeded,
+        steps,
+        issues,
+        total_time,
+    }
+}
 
 pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
     if matches!(verbosity, Verbosity::VeryVerbose) {
@@ -7,21 +29,20 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
 
     let original_bytes = input.len();
     let lines: Vec<&str> = input.lines().collect();
+    let result = parse(input);
 
     let lane = extract_lane(&lines);
-    let issues = extract_issues(&lines);
     let steps = extract_steps(&lines);
-    let result = extract_result(&lines);
+    let issues = extract_issues(&lines);
+    let result_line = extract_result(&lines);
 
     let mut out = String::new();
 
-    // Header
     match &lane {
         Some(name) => out.push_str(&format!("🚀 Lane: {name}\n")),
         None => out.push_str("🚀 fastlane\n"),
     }
 
-    // Verbose: show step progression
     if matches!(verbosity, Verbosity::Verbose) && !steps.is_empty() {
         for step in &steps {
             out.push_str(&format!("  ▸ {step}\n"));
@@ -29,7 +50,6 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         out.push('\n');
     }
 
-    // Warnings and errors (always shown)
     for issue in &issues {
         out.push_str(&format!("  ⚠  {issue}\n"));
     }
@@ -37,8 +57,7 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         out.push('\n');
     }
 
-    // Final result
-    match &result {
+    match &result_line {
         Some(r) if r.contains("completed successfully") => {
             let total = extract_total_time(&lines);
             let time_str = total.map(|t| format!("  ({t} total)")).unwrap_or_default();
@@ -57,12 +76,11 @@ pub fn filter(input: &str, verbosity: Verbosity) -> FilterOutput {
         content: out.clone(),
         original_bytes,
         filtered_bytes: out.len(),
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Strip the `[HH:MM:SS]: ` timestamp prefix and ANSI codes from a fastlane line.
 fn strip_prefix(line: &str) -> &str {
-    // "[09:30:00]: some content" → "some content"
     if line.starts_with('[') {
         if let Some(rest) = line.get(12..) {
             return rest;
@@ -71,13 +89,11 @@ fn strip_prefix(line: &str) -> &str {
     line
 }
 
-/// Remove ANSI escape sequences from a string.
 fn strip_ansi(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
         if c == '\x1b' {
-            // Skip until 'm'
             for ch in chars.by_ref() {
                 if ch == 'm' {
                     break;
@@ -90,7 +106,6 @@ fn strip_ansi(s: &str) -> String {
     out
 }
 
-/// Extract the lane name from `Driving the lane 'name' 🚀`.
 fn extract_lane(lines: &[&str]) -> Option<String> {
     for line in lines {
         let content = strip_prefix(line);
@@ -105,7 +120,6 @@ fn extract_lane(lines: &[&str]) -> Option<String> {
     None
 }
 
-/// Extract warning/error lines: `[!] ...` or lines containing `error:` (case-insensitive).
 fn extract_issues(lines: &[&str]) -> Vec<String> {
     let mut issues = Vec::new();
     for line in lines {
@@ -121,7 +135,6 @@ fn extract_issues(lines: &[&str]) -> Vec<String> {
     issues
 }
 
-/// Extract step names from `Step 'name' (N/M) done.` lines.
 fn extract_steps(lines: &[&str]) -> Vec<String> {
     let mut steps = Vec::new();
     for line in lines {
@@ -130,7 +143,6 @@ fn extract_steps(lines: &[&str]) -> Vec<String> {
             if let Some(start) = content.find('\'') {
                 if let Some(end) = content[start + 1..].find('\'') {
                     let name = &content[start + 1..start + 1 + end];
-                    // Extract "(N/M)" part
                     let progress = content
                         .find('(')
                         .and_then(|i| content[i..].find(')').map(|j| &content[i..=i + j]))
@@ -143,7 +155,6 @@ fn extract_steps(lines: &[&str]) -> Vec<String> {
     steps
 }
 
-/// Extract the final result line: `Lane '...' completed successfully` or `failed`.
 fn extract_result(lines: &[&str]) -> Option<String> {
     for line in lines.iter().rev() {
         let content = strip_ansi(strip_prefix(line));
@@ -157,14 +168,12 @@ fn extract_result(lines: &[&str]) -> Option<String> {
     None
 }
 
-/// Sum up total time from the step timing table (last `| N | action | X.XX s |` rows).
 fn extract_total_time(lines: &[&str]) -> Option<String> {
     let mut total_secs: f64 = 0.0;
     let mut found = false;
 
     for line in lines {
         let content = strip_prefix(line);
-        // Table data rows look like: `| 1    | gym      | 44.23 s     |`
         if content.trim_start().starts_with('|') {
             let cols: Vec<&str> = content.split('|').collect();
             if cols.len() >= 4 {
@@ -300,5 +309,19 @@ mod tests {
     fn strip_ansi_removes_escape_sequences() {
         let input = "\x1b[31mhello\x1b[0m";
         assert_eq!(strip_ansi(input), "hello");
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(sample_success());
+        assert!(result.succeeded);
+        assert_eq!(result.lane, Some("ios beta".to_string()));
+        assert_eq!(result.steps.len(), 3);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(sample_success(), Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }

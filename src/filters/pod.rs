@@ -1,23 +1,7 @@
+use crate::filters::types::PodResult;
 use crate::filters::{FilterOutput, Verbosity};
 
-/// Filter `pod install` / `pod update` output.
-///
-/// Compact:
-/// - Result line: `✓ Pod install complete — N pods installed` or `✗ Pod install failed`
-/// - List installed pods: `  PodName version`
-/// - Show `[!]` warning/error lines always
-/// - Strip "Analyzing dependencies", "Downloading dependencies",
-///   "Generating Pods project", "Integrating client project"
-///
-/// Verbose: same + show "Using" (unchanged) pods too.
-/// VeryVerbose+: raw passthrough.
-pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
-    let original_bytes = raw.len();
-
-    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
-        return FilterOutput::passthrough(raw);
-    }
-
+pub fn parse(raw: &str) -> PodResult {
     let mut installed_pods: Vec<String> = Vec::new();
     let mut using_pods: Vec<String> = Vec::new();
     let mut notices: Vec<String> = Vec::new();
@@ -35,24 +19,17 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
 
     for line in raw.lines() {
         let trimmed = line.trim();
-
         if trimmed.is_empty() {
             continue;
         }
-
-        // Warnings and errors
         if trimmed.starts_with("[!]") {
             notices.push(trimmed.to_string());
             continue;
         }
-
-        // Completion line
         if trimmed.starts_with("Pod installation complete") || trimmed.contains("pods installed") {
             completion_line = Some(trimmed.to_string());
             continue;
         }
-
-        // Error indicators
         if trimmed.starts_with("Error:")
             || trimmed.starts_with("error:")
             || trimmed.starts_with("[!] Unable to")
@@ -61,21 +38,15 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
             notices.push(trimmed.to_string());
             continue;
         }
-
-        // Skip noise lines
         if noise.iter().any(|n| trimmed.starts_with(n)) {
             continue;
         }
-
-        // Installing PodName (version)
         if let Some(rest) = trimmed.strip_prefix("Installing ") {
             if let Some(pod) = parse_pod_line(rest) {
                 installed_pods.push(pod);
             }
             continue;
         }
-
-        // Using PodName (version) — unchanged pods
         if let Some(rest) = trimmed.strip_prefix("Using ") {
             if let Some(pod) = parse_pod_line(rest) {
                 using_pods.push(pod);
@@ -83,53 +54,85 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         }
     }
 
+    let succeeded = completion_line.is_some() && !failed;
+    let total_pods = if let Some(ref c) = completion_line {
+        extract_pod_count(c).unwrap_or(installed_pods.len() + using_pods.len())
+    } else {
+        installed_pods.len() + using_pods.len()
+    };
+
+    PodResult {
+        succeeded,
+        installed_pods,
+        using_pods,
+        notices,
+        total_pods,
+    }
+}
+
+/// Filter `pod install` / `pod update` output.
+///
+/// Compact:
+/// - Result line: `✓ Pod install complete — N pods installed` or `✗ Pod install failed`
+/// - List installed pods: `  PodName version`
+/// - Show `[!]` warning/error lines always
+/// - Strip noise lines
+///
+/// Verbose: same + show "Using" (unchanged) pods too.
+/// VeryVerbose+: raw passthrough.
+pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
+    let original_bytes = raw.len();
+
+    if matches!(verbosity, Verbosity::VeryVerbose | Verbosity::Maximum) {
+        return FilterOutput::passthrough(raw);
+    }
+
+    let result = parse(raw);
+
     let mut out = String::new();
 
-    // Result header
-    if let Some(ref completion) = completion_line {
-        let pod_count = installed_pods.len() + using_pods.len();
-        let action = if using_pods.is_empty() {
+    if result.succeeded {
+        let action = if result.using_pods.is_empty() {
             "install"
         } else {
             "update"
         };
-        // Extract pod count from completion line if possible
-        let count_str = extract_pod_count(completion).unwrap_or(pod_count);
         out.push_str(&format!(
-            "\x1b[32m✓\x1b[0m Pod {action} complete — {count_str} pod{} installed\n",
-            if count_str == 1 { "" } else { "s" }
+            "\x1b[32m✓\x1b[0m Pod {action} complete — {} pod{} installed\n",
+            result.total_pods,
+            if result.total_pods == 1 { "" } else { "s" }
         ));
-    } else if failed || notices.iter().any(|n| n.starts_with("[!] Unable")) {
+    } else if !result.succeeded
+        && result.notices.iter().any(|n| {
+            n.starts_with("[!] Unable") || n.starts_with("Error:") || n.starts_with("error:")
+        })
+    {
         out.push_str("\x1b[31m✗\x1b[0m Pod install failed\n");
     }
 
-    // Notices ([!] lines)
-    if !notices.is_empty() {
+    if !result.notices.is_empty() {
         out.push('\n');
-        for n in &notices {
+        for n in &result.notices {
             out.push_str(&format!("\x1b[33m{n}\x1b[0m\n"));
         }
     }
 
-    // Installed pods
-    if !installed_pods.is_empty() {
+    if !result.installed_pods.is_empty() {
         out.push('\n');
-        for pod in &installed_pods {
+        for pod in &result.installed_pods {
             out.push_str(&format!("  {pod}\n"));
         }
     }
 
-    // "Using" pods — only in verbose mode
-    if verbosity == Verbosity::Verbose && !using_pods.is_empty() {
-        if installed_pods.is_empty() {
+    if verbosity == Verbosity::Verbose && !result.using_pods.is_empty() {
+        if result.installed_pods.is_empty() {
             out.push('\n');
         }
-        for pod in &using_pods {
+        for pod in &result.using_pods {
             out.push_str(&format!("  (unchanged) {pod}\n"));
         }
     }
 
-    // If nothing was collected, passthrough
     if out.is_empty() {
         return FilterOutput::passthrough(raw);
     }
@@ -139,13 +142,12 @@ pub fn filter(raw: &str, verbosity: Verbosity) -> FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
+        structured: serde_json::to_value(&result).ok(),
     }
 }
 
-/// Parse `PodName (version) [source]` → `"PodName version"`.
 fn parse_pod_line(rest: &str) -> Option<String> {
     let rest = rest.trim();
-    // Format: "Alamofire (5.8.1)" or "Alamofire (5.8.1) [some source]"
     if let Some(paren_start) = rest.find('(') {
         let name = rest[..paren_start].trim().to_string();
         if name.is_empty() {
@@ -155,7 +157,6 @@ fn parse_pod_line(rest: &str) -> Option<String> {
         let version = after.split_once(')').map(|(v, _)| v.trim()).unwrap_or("?");
         Some(format!("{name} {version}"))
     } else {
-        // No version info, just the name
         let name = rest.trim().to_string();
         if name.is_empty() {
             None
@@ -165,10 +166,7 @@ fn parse_pod_line(rest: &str) -> Option<String> {
     }
 }
 
-/// Extract pod count from completion line.
 fn extract_pod_count(line: &str) -> Option<usize> {
-    // "Pod installation complete! There are 3 dependencies from the Podfile and 3 total pods installed."
-    // Look for "N total pods installed" or similar
     let words: Vec<&str> = line.split_whitespace().collect();
     for (i, w) in words.iter().enumerate() {
         if *w == "total" && i > 0 {
@@ -268,5 +266,19 @@ Pod installation complete! There are 3 dependencies from the Podfile and 3 total
     fn bytes_reduced_vs_original() {
         let out = filter(SAMPLE_INSTALL, Verbosity::Compact);
         assert!(out.filtered_bytes < out.original_bytes);
+    }
+
+    #[test]
+    fn parse_returns_structured_data() {
+        let result = parse(SAMPLE_INSTALL);
+        assert!(result.succeeded);
+        assert_eq!(result.installed_pods.len(), 3);
+        assert_eq!(result.total_pods, 3);
+    }
+
+    #[test]
+    fn structured_is_some_on_filter() {
+        let out = filter(SAMPLE_INSTALL, Verbosity::Compact);
+        assert!(out.structured.is_some());
     }
 }
