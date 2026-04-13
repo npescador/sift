@@ -30,12 +30,14 @@ fn run() -> Result<i32> {
     let cli = cli::Cli::parse();
     let cfg = config::load();
 
-    let verbosity = if cli.raw {
-        Verbosity::Raw
+    // Capture the explicit CLI verbosity override (None = no flag given).
+    // The actual effective verbosity is resolved per-command in the Proxy arm.
+    let cli_verbosity_override: Option<Verbosity> = if cli.raw {
+        Some(Verbosity::Raw)
     } else if cli.verbose > 0 {
-        cli.verbosity()
+        Some(cli.verbosity())
     } else {
-        config::parse_verbosity(&cfg.defaults.verbosity)
+        None
     };
 
     match cli.command {
@@ -133,6 +135,7 @@ fn run() -> Result<i32> {
             let rest = &args[1..];
 
             let family = commands::detect(&args);
+            let verbosity = cfg.resolve_verbosity(family.name(), cli_verbosity_override);
             let use_streaming = (cli.stream || cfg.streaming.enabled)
                 && streaming::supports_streaming(&family)
                 && verbosity != Verbosity::Raw;
