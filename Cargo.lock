@@ -504,6 +504,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sift-lib"
+version = "0.6.0"
+dependencies = [
+ "sift-cli",
+]
+
+[[package]]
 name = "similar"
 version = "2.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

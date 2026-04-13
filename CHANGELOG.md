@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**`sift-lib` crate — programmatic library API**
+- New `sift-lib` crate at `crates/sift-lib/` — add `sift-lib = "0.6"` to use Sift as a library
+- `filter(args, stdout, verbosity) -> FilterOutput` — filter pre-captured output without spawning a subprocess
+- `run(args, verbosity) -> Result<RunResult>` — execute a command and return filtered output in one call
+- `detect_family(args) -> CommandFamily` — inspect how Sift classifies a command
+- Re-exports `Verbosity`, `FilterOutput`, `CommandFamily`, `SiftError` from `sift-cli`
+- Workspace restructured: root `Cargo.toml` is now a workspace with members `[".","crates/sift-lib"]`
+- 4 new tests in `sift-lib`; test count 749 → 756 (across workspace)
+
 **Per-command configuration overrides (`[commands.<name>]`)**
 - New `[commands.<name>]` section in `~/.config/sift/config.toml` — override verbosity per command family
 - `verbosity` field: one of `compact`, `verbose`, `very_verbose`, `maximum`, `raw`
