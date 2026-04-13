@@ -107,7 +107,7 @@ Structured filter output and streaming executor for long-running commands.
 
 ---
 
-## v0.7.0 — Shell Completions & sift-lib 🚧 In Progress
+## v0.7.0 — Shell Completions & sift-lib ✅ Released
 
 Quality-of-life improvements for daily use, plus the programmatic crate API.
 
