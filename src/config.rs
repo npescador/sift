@@ -276,7 +276,10 @@ mod tests {
     fn per_command_config_parses_max_lines() {
         let toml_str = "[commands.xcodebuild]\nverbosity = \"compact\"\nmax_lines = 30\n";
         let cfg: Config = toml::from_str(toml_str).unwrap();
-        let xb = cfg.commands.get("xcodebuild").expect("xcodebuild entry missing");
+        let xb = cfg
+            .commands
+            .get("xcodebuild")
+            .expect("xcodebuild entry missing");
         assert_eq!(xb.verbosity, "compact");
         assert_eq!(xb.max_lines, 30);
     }
@@ -316,7 +319,8 @@ mod tests {
 
     #[test]
     fn resolve_verbosity_unknown_command_uses_global_default() {
-        let toml_str = "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nverbosity = \"raw\"\n";
+        let toml_str =
+            "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nverbosity = \"raw\"\n";
         let cfg: Config = toml::from_str(toml_str).unwrap();
         // "grep" has no override — should fall back to global "verbose"
         let v = cfg.resolve_verbosity("grep", None);
@@ -326,8 +330,7 @@ mod tests {
     #[test]
     fn per_command_config_empty_verbosity_falls_back_to_global() {
         // An entry with empty verbosity should not override the global default
-        let toml_str =
-            "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nmax_lines = 50\n";
+        let toml_str = "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nmax_lines = 50\n";
         let cfg: Config = toml::from_str(toml_str).unwrap();
         let v = cfg.resolve_verbosity("git", None);
         assert!(matches!(v, Verbosity::Verbose));
