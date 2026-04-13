@@ -22,6 +22,7 @@ path = "src/main.rs"
 [dependencies]
 # CLI argument parsing — industry standard, derive API keeps boilerplate minimal
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 # Ergonomic error type derivation for library-facing errors
 thiserror = "2"
 # Application-level error propagation with context in main.rs
