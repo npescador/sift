@@ -161,7 +161,7 @@ sift git diff              # Compact (default) — maximum signal reduction
 sift -v git diff           # Verbose — more context retained
 sift -vv git diff          # Very verbose — near-complete output
 sift -vvv git diff         # Maximum — minimal filtering
-sift --raw git diff        # Raw passthrough — zero filtering
+sift --raw git diff        # Raw passthrough — zero filtering, identical to direct invocation
 ```
 
 Default verbosity can be set in the config file.
