@@ -1,0 +1,15 @@
+[package]
+name = "sift-lib"
+version = "0.6.0"
+edition = "2021"
+rust-version = "1.75"
+description = "Programmatic library API for Sift — smart output reduction for AI coding workflows"
+license = "MIT"
+repository = "https://github.com/npescador/sift"
+homepage = "https://github.com/npescador/sift"
+readme = "README.md"
+keywords = ["cli", "developer-tools", "ai", "terminal", "output"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+sift-cli = { path = "../.." }

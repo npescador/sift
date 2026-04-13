@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "crates/sift-lib"]
+resolver = "2"
+
 [package]
 name = "sift-cli"
 version = "0.6.0"
