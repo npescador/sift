@@ -102,6 +102,12 @@ pub enum SiftCommand {
         shell: clap_complete::Shell,
     },
 
+    /// Run built-in filter benchmarks and show reduction percentages
+    ///
+    /// Runs each supported command family's filter against a realistic
+    /// fixture and reports input size, output size, and bytes saved.
+    Benchmark,
+
     /// Run a command with smart output filtering
     #[command(external_subcommand)]
     Proxy(Vec<String>),

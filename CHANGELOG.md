@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**`sift benchmark` — built-in filter benchmarks**
+- New `sift benchmark` subcommand — runs all 17 built-in command family fixtures through their filters at Compact verbosity and prints a reduction table
+- Output: per-family input/output/saved columns + overall total row
+- Fixtures cover: `git status/diff/log`, `grep`, `cat`, `xcodebuild build/test`, `swiftlint`, `swift build/test/package`, `fastlane`, `xcrun simctl`, `curl`, `agvtool`, `codesign`, `swiftformat`
+- 4 new tests in `benchmark.rs`; test count 756 → 784 (across workspace)
+
 **`sift-lib` crate — programmatic library API**
 - New `sift-lib` crate at `crates/sift-lib/` — add `sift-lib = "0.6"` to use Sift as a library
 - `filter(args, stdout, verbosity) -> FilterOutput` — filter pre-captured output without spawning a subprocess
