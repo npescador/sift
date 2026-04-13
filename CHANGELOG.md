@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+**Shell completions (`sift completions <shell>`)**
+- New `sift completions <shell>` subcommand — prints a completion script to stdout for `bash`, `zsh`, or `fish`
+- `sift init --completions <shell>` — installs the script to the standard location automatically:
+  - zsh → `~/.zsh/completions/_sift`
+  - bash → `~/.local/share/bash-completion/completions/sift`
+  - fish → `~/.config/fish/completions/sift.fish`
+- Completions cover all sift subcommands (`stats`, `init`, `completions`), all global flags (`--raw`, `--json`, `--stream`, `-v`), and all 21 known proxy command families with their subcommands (e.g. `sift xcodebuild <TAB>` → `build`, `test`, `archive`, `-list`, `-showBuildSettings`)
+- Custom `src/completions.rs` module — handcrafted zsh/bash/fish scripts with deep proxy-command awareness; falls back to `clap_complete` for other shells
+- 13 new tests in `completions.rs`; test count 715 → 741
+
+---
+
+## [0.6.0] — 2026-04-13
+
+Structured filter output and streaming executor. All 27 command families now support `--json` output via typed intermediate representations. Long-running build and test commands stream live progress to stderr.
+
+### Added
+
+**Structured filter types (`src/filters/types.rs`)**
+- 38 typed structs across all command families, all implementing `serde::Serialize`
+- Shared primitives: `Diagnostic`, `Severity`, `TestFailure`
+- Full coverage: `XcodebuildBuildResult`, `XcodebuildTestResult`, `XcodebuildArchiveResult`, `XcodebuildListResult`, `XcodebuildSettingsResult`, `SwiftBuildResult`, `SwiftTestResult`, `SwiftPackageResult`, `GitStatusResult`, `GitDiffResult`, `GitLogResult`, `SwiftlintResult`, `SwiftFormatResult`, `SimctlListResult`, `XcresultResult`, `PodResult`, `FastlaneResult`, `CodesignResult`, `SecurityIdentityResult`, `CurlResult`, `GrepResult`, `LsResult`, `DoccResult`, `TuistResult`, `AgvtoolResult`, `XcodeSelectResult`, `ReadResult`
+
+**JSON output (`--json`)**
+- `sift --json <command>` emits a versioned JSON envelope: `{"version": 1, "command": "...", "data": {...}}`
+- All 27 command families emit fully typed JSON; unknown commands degrade gracefully to `{"raw": "..."}`
+- Stable, machine-readable output for AI agent integrations and programmatic consumers
+
+**Streaming executor (`src/streaming.rs`)**
+- Live progress to stderr for long-running builds and tests — stdout remains clean and unaffected
+- `xcodebuild build` / `archive` / `swift build`: compilation progress per module, first 5 errors surfaced inline with `…more errors (will summarize at end)` after the threshold
+- `xcodebuild test` / `swift test`: each test result streamed as it runs — `✓` pass / `✗` fail
+
+**Shared filter utilities (`src/filters/util.rs`)**
+- `short_path(path, keep)` — trims long file paths to last N components
+- `plural(n)` — `""` or `"s"` for English plurals
+- `split_at_marker(line, marker)` — splits compiler diagnostic lines at severity markers (e.g. `": error:"`)
+
+**Regression safety**
+- `insta` snapshot tests (`tests/snapshot_tests.rs`) — catch unintended rendering changes across all converted filters
+- Error recall framework (`tests/recall.rs`) — `.errors.json` manifests per filter guarantee that critical error signals are never silently dropped
+
+**Shell hook hardening (`sift init --shell`)**
+- CI environment detection — hooks auto-disable in CI (`CI`, `GITHUB_ACTIONS`, `JENKINS_URL` env vars)
+- `--commands` flag — opt-in to wrap specific commands only (e.g. `sift init --shell --commands git,xcodebuild`)
+
+### Changed
+- All 27 command families refactored to parse/render pattern — clean separation between parsing raw output and rendering text or JSON
+- Test count: 292 → 715 (322 unit + 366 filter + 9 integration + 8 recall + 10 streaming)
+
 ---
 
 ## [0.5.0] — 2026-04-07
@@ -189,7 +241,8 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/npescador/sift/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/npescador/sift/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/npescador/sift/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/npescador/sift/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/npescador/sift/compare/v0.2.0...v0.3.0

@@ -91,21 +91,29 @@ Extended command coverage for AI-assisted iOS development workflows. SQLite pers
 
 ---
 
-## v0.6.0 — JSON Output & Programmatic API 🔮 Planned
+## v0.6.0 — JSON Output & Programmatic API ✅ Released
 
-Enable machine-readable output for advanced agent integrations.
+Structured filter output and streaming executor for long-running commands.
 
-- [ ] `--json` output mode for all command families
-- [ ] Stable, versioned JSON schema per command family
-- [ ] Programmatic library API (`sift-lib` crate) for embedding in other tools
+- [x] `--json` output mode for all command families
+- [x] Stable, versioned JSON schema per command family (versioned envelope `{"version":1,...}`)
+- [x] 38 typed structs in `src/filters/types.rs` — all implementing `serde::Serialize`
+- [x] All 27 command families refactored to parse/render pattern
+- [x] Streaming executor (`src/streaming.rs`) — live progress to stderr for builds and tests
+- [x] Shared filter utilities (`src/filters/util.rs`)
+- [x] `insta` snapshot regression tests + error recall framework
+- [x] Shell hook hardening: CI detection, `--commands` opt-in flag
+- [ ] Programmatic library API (`sift-lib` crate) — deferred to v0.7.0
 
 ---
 
-## v0.7.0 — Shell Completions & Polish 🔮 Planned
+## v0.7.0 — Shell Completions & sift-lib 🚧 In Progress
 
-Quality-of-life improvements for daily use.
+Quality-of-life improvements for daily use, plus the programmatic crate API.
 
-- [ ] Shell completion scripts (zsh, bash, fish)
+- [x] Shell completion scripts (zsh, bash, fish) — `sift completions <shell>`
+- [x] `sift init --completions <shell>` — auto-install to standard location
+- [ ] `sift-lib` crate — programmatic library API for embedding Sift in other tools
 - [ ] `sift benchmark` command for measuring real-world token savings
 - [ ] Per-command override configuration (`[commands.git]` etc.)
 - [ ] `sift update` — self-update from GitHub releases

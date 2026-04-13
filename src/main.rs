@@ -1,5 +1,6 @@
 mod cli;
 mod commands;
+mod completions;
 mod config;
 mod error;
 mod executor;
@@ -38,6 +39,11 @@ fn run() -> Result<i32> {
     };
 
     match cli.command {
+        cli::SiftCommand::Completions { shell } => {
+            let mut cmd = cli::Cli::command();
+            completions::generate(shell, &mut cmd, &mut std::io::stdout());
+            Ok(0)
+        }
         cli::SiftCommand::Init {
             shell,
             claude,
@@ -46,6 +52,7 @@ fn run() -> Result<i32> {
             show,
             uninstall,
             commands,
+            completions: completions_shell,
         } => {
             init::run(init::InitOptions {
                 shell,
@@ -55,6 +62,7 @@ fn run() -> Result<i32> {
                 show,
                 uninstall,
                 commands,
+                completions: completions_shell,
             })?;
             Ok(0)
         }
