@@ -46,9 +46,13 @@ Sift intercepts the command, runs it natively, captures all output, and returns 
 
 ## Quick Start
 
-### Install from source
+### Install
 
 ```bash
+# Direct download (macOS Apple Silicon)
+curl -L https://github.com/npescador/sift/releases/latest/download/sift -o ~/.local/bin/sift && chmod +x ~/.local/bin/sift
+
+# Or build from source
 git clone https://github.com/npescador/sift
 cd sift
 cargo build --release
@@ -65,6 +69,7 @@ sift xcodebuild test -scheme MyApp -destination "platform=iOS Simulator,name=iPh
 sift swift build
 sift pod install
 sift stats
+sift update        # self-update to latest release
 ```
 
 ### Shell integration (recommended)
@@ -75,6 +80,7 @@ Run once to inject automatic shell hooks so every supported command is filtered 
 sift init --shell          # wraps git, xcodebuild, xcrun, swiftlint, pod… in ~/.zshrc
 sift init --claude         # creates/updates CLAUDE.md for Claude Code
 sift init --copilot        # creates/updates .github/copilot-instructions.md
+sift init --completions zsh  # install shell completions (zsh, bash, fish)
 sift init --show           # show current installation status
 sift init --uninstall      # remove all sift-managed hooks and instruction files
 ```
@@ -152,6 +158,26 @@ After `sift init --shell`, commands like `git diff` automatically go through Sif
 
 Unknown commands pass through **unmodified** with the original exit code.
 
+### JSON Output
+
+Any supported command accepts `--json` for structured, machine-readable output:
+
+```bash
+sift --json xcodebuild test -scheme MyApp ...
+sift --json git diff HEAD~1
+sift --json swiftlint
+```
+
+Output follows a versioned envelope: `{"version": 1, "family": "xcodebuild_test", ...}`. Schemas are stable across patch versions.
+
+### Benchmark
+
+```bash
+sift benchmark          # run all 17 built-in fixtures and print reduction table
+```
+
+Measures real-world token savings across all supported command families using representative output fixtures.
+
 ---
 
 ## Verbosity Modes
@@ -182,13 +208,21 @@ enabled = true          # set false to disable stats recording
 
 [tee]
 enabled = true          # save raw output to disk when filter produces empty result
+
+# Per-command overrides — takes precedence over [defaults]
+[commands.git]
+verbosity = "verbose"
+
+[commands.xcodebuild]
+verbosity = "compact"
+max_lines = 50
 ```
 
 **Config resolution:**
 1. `$XDG_CONFIG_HOME/sift/config.toml` if `XDG_CONFIG_HOME` is set
 2. `~/.config/sift/config.toml` otherwise
 
-**Verbosity priority:** `--raw` > `-v` flags > config default
+**Verbosity priority:** CLI flag > `[commands.<name>]` override > `[defaults]` > compact
 
 ### Tee mode
 
@@ -240,7 +274,7 @@ See **[AGENTS.md](AGENTS.md)** for setup guides for:
 
 ## Status
 
-**v0.5.0** — See [CHANGELOG.md](CHANGELOG.md) for the full version history and [ROADMAP.md](ROADMAP.md) for planned features.
+**v0.7.0** — See [CHANGELOG.md](CHANGELOG.md) for the full version history and [ROADMAP.md](ROADMAP.md) for planned features.
 
 ---
 

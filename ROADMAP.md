@@ -107,7 +107,7 @@ Structured filter output and streaming executor for long-running commands.
 
 ---
 
-## v0.7.0 — Shell Completions & sift-lib 🚧 In Progress
+## v0.7.0 — Shell Completions & sift-lib ✅ Released
 
 Quality-of-life improvements for daily use, plus the programmatic crate API.
 
@@ -120,12 +120,39 @@ Quality-of-life improvements for daily use, plus the programmatic crate API.
 
 ---
 
+## v0.8.0 — iOS Intelligence 🔮 Planned
+
+Deep iOS project introspection and crash analysis. Focused on the commands AI agents use obsessively but developers never read directly.
+
+- [ ] `sift read --outline <file.swift>` — Swift signature extraction (types, method signatures, conformances — no bodies)
+- [ ] `sift find` improvements — auto-exclude DerivedData, Pods, `.build`, `xcuserdata`; group by directory; show exclusion summary
+- [ ] `sift project` — full project snapshot: targets, bundle IDs, min iOS, Swift version, dependencies (CocoaPods/SPM/Carthage), source file counts, build configurations
+- [ ] `sift crashlog <file>` — parse `.crash` and `.ips` crash reports: crash type, crashed thread backtrace (Swift-demangled), device/OS info (~95% reduction)
+- [ ] `sift periphery` — dead code scan results grouped by file and symbol type (class, func, var, protocol)
+
+---
+
+## v0.9.0 — Project Introspection 🔮 Planned
+
+Configuration and signing file parsing — the files AI agents read but no human can parse at a glance.
+
+- [ ] `sift pbxproj <project.pbxproj>` — targets, bundle IDs, signing config, build phases, inter-target dependencies
+- [ ] `sift plutil <file.plist>` — Info.plist and entitlements compact view: identity, privacy permissions, capabilities
+- [ ] `sift provisioning <file.mobileprovision>` — profile type, app ID, team, expiry status, entitlements
+- [ ] `sift xccov <file.xcresult>` — code coverage summary: overall %, files below threshold, uncovered functions
+- [ ] `sift gh run view` / `sift gh run list` — GitHub Actions log filtering for iOS CI (strips timestamps, runner noise; reuses xcodebuild filters)
+- [ ] `sift xclogparser <file.xcactivitylog>` — Xcode build activity log: errors, warnings, build phase times, slowest files to compile
+
+---
+
 ## v1.0.0 — Stable Release 🔮 Planned
 
-First stable release with full documentation and compatibility guarantees.
+First stable release with full documentation, compatibility guarantees, and broad distribution.
 
-- [ ] Stable public API contract
+- [ ] Stable public API contract for `sift-lib`
 - [ ] Full documentation coverage
+- [ ] Homebrew tap (`brew tap npescador/sift && brew install sift`)
+- [ ] GitHub Actions CI release workflow — cross-compiled binaries per architecture (aarch64-apple-darwin, x86_64-apple-darwin, Linux)
 - [ ] Windows support
 - [ ] Performance benchmarks and regression tests
 
@@ -139,93 +166,4 @@ First stable release with full documentation and compatibility guarantees.
 - AI-based summarization (Sift uses rule-based filters by design for predictability)
 
 
----
 
-## Milestone 1 — Foundation (MVP) 🚧 In Progress
-
-Core infrastructure and basic command filtering support. The goal is a working `sift` binary that adds real value for the primary command families used in iOS/macOS development.
-
-- [x] Repository setup and meta-files
-- [ ] Rust project scaffold (`sift-cli` crate)
-- [ ] CLI entry point with `clap` (subcommands, verbosity flags, `--raw`)
-- [ ] Executor layer (subprocess spawn, stdout/stderr/exit-code capture)
-- [ ] Command detection and routing (`CommandFamily` enum)
-- [ ] `git status` filter — grouped by file state with counts
-- [ ] `git diff` filter — per-file stats, hunk header summaries
-- [ ] `grep` / `rg` filter — grouped by file, deduplication, result cap
-- [ ] `cat` / `read` filter — safe truncation, configurable line ranges
-- [ ] Config file support (`~/.config/sift/config.toml`)
-- [ ] Tracking abstraction (in-memory, session-scoped)
-- [ ] Unit tests for all filters
-- [ ] README and documentation pass
-
----
-
-## Milestone 2 — Xcode Support 🍎
-
-First-class iOS/macOS developer workflow support. This is Sift's primary differentiator.
-
-- [ ] `xcodebuild build` filter — group unique compiler errors by file, summarize warnings
-- [ ] `xcodebuild test` filter — pass/fail counts, failed test names and errors
-- [ ] Swift compiler error message normalization
-- [ ] Warning deduplication across build targets
-- [ ] Simulator output noise reduction
-- [ ] Integration test fixtures from real `xcodebuild` runs
-
----
-
-## Milestone 3 — Shell Integration
-
-Make Sift seamlessly transparent in daily terminal workflows.
-
-- [ ] Shell function wrappers (zsh, bash, fish)
-- [ ] `sift install-hooks` command for automated shell integration
-- [ ] Per-command alias strategy documentation
-- [ ] Safe uninstall / rollback path
-- [ ] Shell completion scripts (zsh, bash, fish)
-
----
-
-## Milestone 4 — Metrics & Persistence
-
-Quantify Sift's value with real, persistent data.
-
-- [ ] SQLite persistence (`rusqlite`) for tracking records
-- [ ] `sift stats` subcommand — per-session and historical summaries
-- [ ] Per-command-family savings breakdown
-- [ ] `sift stats --reset` to clear history
-- [ ] Export to JSON for external analysis
-
----
-
-## Milestone 5 — AI Agent Integrations
-
-Native integration with leading AI coding tools, with documented workflows and benchmarks.
-
-- [ ] `AGENTS.md` for Codex CLI compatibility
-- [ ] Copilot CLI workflow guide
-- [ ] Claude Code integration guide
-- [ ] Automated token savings benchmark suite
-- [ ] `sift benchmark` command for measuring real-world savings
-
----
-
-## Milestone 6 — JSON Output & Programmatic API
-
-Enable machine-readable output for advanced agent integrations.
-
-- [ ] `--json` output mode for all command families
-- [ ] Stable, versioned JSON schema per command family
-- [ ] Programmatic library API (`sift-lib` crate) for embedding in other tools
-
----
-
-## Non-Goals (V1)
-
-The following are explicitly out of scope for the first major version:
-
-- GUI or web UI
-- Remote or cloud execution
-- Cloud telemetry (all tracking is always local)
-- Windows support (planned for a future major version)
-- AI-based summarization (Sift uses rule-based filters by design for predictability)
