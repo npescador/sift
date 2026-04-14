@@ -6,7 +6,7 @@
 use crate::filters::{
     self, agvtool, codesign, crashlog, curl, fastlane, gh, git_diff, git_log, git_status, grep,
     pbxproj, periphery, plutil, read, swift_build, swift_package, swift_test, swiftformat,
-    swiftlint, xccov, xcodebuild_build, xcodebuild_test, xcrun_simctl, Verbosity,
+    swiftlint, xccov, xclogparser, xcodebuild_build, xcodebuild_test, xcrun_simctl, Verbosity,
 };
 
 // ---------------------------------------------------------------------------
@@ -701,6 +701,31 @@ LOGS
 2024-01-15T10:30:49.010Z ##[error]Process completed with exit code 65.
 "#;
 
+const XCLOGPARSER: &str = r#"Build session started at 2024-01-15 10:30:00
+Compiling 83 Swift source files across 3 targets...
+
+/Users/dev/MyApp/Sources/Payments/PaymentService.swift:42:5: error: use of unresolved identifier 'PaymentResult'
+/Users/dev/MyApp/Sources/Payments/PaymentService.swift:67:12: error: value of type 'String' has no member 'processPayment'
+/Users/dev/MyApp/Sources/Payments/CheckoutViewModel.swift:103:8: error: cannot convert value of type 'Int' to expected argument type 'Decimal'
+/Users/dev/MyApp/Sources/Network/APIClient.swift:15:8: warning: initialization of variable 'session' was never used
+/Users/dev/MyApp/Sources/Network/APIClient.swift:88:3: warning: result of call to 'dataTask(with:completionHandler:)' is unused
+/Users/dev/MyApp/Sources/Profile/ProfileViewController.swift:201:10: warning: 'viewDidAppear' is deprecated: use viewIsAppearing instead
+
+Phase: Sources  Duration: 34.78s
+Phase: Frameworks  Duration: 2.91s
+Phase: Resources  Duration: 1.24s
+Phase: Embed Frameworks  Duration: 0.43s
+
+  34.78s  /Users/dev/MyApp/Sources/Payments/PaymentService.swift
+  18.23s  /Users/dev/MyApp/Sources/Network/APIClient.swift
+  12.47s  /Users/dev/MyApp/Sources/Auth/AuthViewModel.swift
+   9.88s  /Users/dev/MyApp/Sources/Profile/ProfileViewController.swift
+   7.32s  /Users/dev/MyApp/Sources/Analytics/AnalyticsManager.swift
+   4.11s  /Users/dev/MyApp/Sources/Models/Order.swift
+
+** BUILD FAILED ** (41.234 seconds)
+"#;
+
 /// One row of benchmark output.
 pub struct BenchmarkResult {
     pub label: String,
@@ -808,6 +833,10 @@ pub fn run_all() -> Vec<BenchmarkResult> {
         ),
         ("xccov", Box::new(|s| xccov::filter(s, Verbosity::Compact))),
         ("gh run", Box::new(|s| gh::filter(s, Verbosity::Compact))),
+        (
+            "xclogparser",
+            Box::new(|s| xclogparser::filter(s, Verbosity::Compact)),
+        ),
     ];
 
     let inputs: &[&str] = &[
@@ -834,6 +863,7 @@ pub fn run_all() -> Vec<BenchmarkResult> {
         PLUTIL,
         XCCOV,
         GH_RUN,
+        XCLOGPARSER,
     ];
 
     fixtures

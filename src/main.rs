@@ -111,6 +111,23 @@ fn run() -> Result<i32> {
             print!("{}", result.content);
             Ok(0)
         }
+        cli::SiftCommand::Xclogparser { file } => {
+            let content = match file {
+                Some(path) => std::fs::read_to_string(&path)
+                    .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", path, e))?,
+                None => {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin()
+                        .read_to_string(&mut buf)
+                        .map_err(|e| anyhow::anyhow!("Cannot read stdin: {}", e))?;
+                    buf
+                }
+            };
+            let result = filters::xclogparser::filter(&content, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
+        }
         cli::SiftCommand::Init {
             shell,
             claude,

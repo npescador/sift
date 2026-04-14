@@ -27,6 +27,7 @@ pub mod swiftformat;
 pub mod swiftlint;
 pub mod tuist;
 pub mod xccov;
+pub mod xclogparser;
 pub mod xcode_select;
 pub mod xcodebuild_archive;
 pub mod xcodebuild_build;

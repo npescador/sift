@@ -202,6 +202,18 @@ pub enum SiftCommand {
         threshold: f64,
     },
 
+    /// Parse Xcode build activity log into a compact summary
+    ///
+    /// Accepts text output from `xclogparser parse --reporter issues` (JSON),
+    /// plain-text build logs, or heuristically-extracted .xcactivitylog content.
+    ///
+    ///   xclogparser parse --reporter issues MyApp.xcactivitylog | sift xclogparser
+    ///   sift xclogparser build.log
+    Xclogparser {
+        /// Optional path to a log file (reads stdin if omitted)
+        file: Option<String>,
+    },
+
     /// Run a command with smart output filtering
     #[command(external_subcommand)]
     Proxy(Vec<String>),
