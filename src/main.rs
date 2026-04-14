@@ -70,6 +70,47 @@ fn run() -> Result<i32> {
             print!("{}", result.content);
             Ok(0)
         }
+        cli::SiftCommand::Pbxproj { file } => {
+            let content = std::fs::read_to_string(&file)
+                .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", file, e))?;
+            let result = filters::pbxproj::filter(&content, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
+        }
+        cli::SiftCommand::Plutil { file } => {
+            let content = std::fs::read_to_string(&file)
+                .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", file, e))?;
+            let result = filters::plutil::filter(&content, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
+        }
+        cli::SiftCommand::Provisioning { file } => {
+            // .mobileprovision is a DER/CMS binary; extract embedded plist XML
+            let raw_bytes = std::fs::read(&file)
+                .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", file, e))?;
+            let plist_xml = extract_mobileprovision_plist(&raw_bytes);
+            let result = filters::provisioning::filter(&plist_xml, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
+        }
+        cli::SiftCommand::Xccov { file, threshold } => {
+            let content = match file {
+                Some(path) => std::fs::read_to_string(&path)
+                    .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", path, e))?,
+                None => {
+                    use std::io::Read;
+                    let mut buf = String::new();
+                    std::io::stdin()
+                        .read_to_string(&mut buf)
+                        .map_err(|e| anyhow::anyhow!("Cannot read stdin: {}", e))?;
+                    buf
+                }
+            };
+            let result =
+                filters::xccov::filter_with_threshold(&content, default_verbosity, threshold);
+            print!("{}", result.content);
+            Ok(0)
+        }
         cli::SiftCommand::Init {
             shell,
             claude,
@@ -309,6 +350,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Agvtool => filters::agvtool::filter(stdout, verbosity),
         CommandFamily::XcodeSelect => filters::xcode_select::filter(stdout, verbosity),
         CommandFamily::Periphery => filters::periphery::filter(stdout, verbosity),
+        CommandFamily::Gh => filters::gh::filter(stdout, verbosity),
         CommandFamily::SwiftBuild(sub) => match sub {
             commands::swift_build::SwiftBuildSubcommand::Build => {
                 filters::swift_build::filter(stdout, verbosity)
@@ -325,6 +367,27 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
 }
 
 /// Format a byte count as a human-readable string (B / KB / MB).
+/// Extract the embedded XML plist from a .mobileprovision DER/CMS binary.
+///
+/// A .mobileprovision file is a signed CMS envelope. The embedded plist is a
+/// plain XML byte range that starts with `<?xml` and ends with `</plist>`.
+/// We find it with a simple byte scan — no crypto dependency needed.
+fn extract_mobileprovision_plist(bytes: &[u8]) -> String {
+    const START: &[u8] = b"<?xml";
+    const END: &[u8] = b"</plist>";
+
+    if let Some(start) = bytes.windows(START.len()).position(|w| w == START) {
+        if let Some(end_rel) = bytes[start..].windows(END.len()).position(|w| w == END) {
+            let end = start + end_rel + END.len();
+            if let Ok(xml) = std::str::from_utf8(&bytes[start..end]) {
+                return xml.to_string();
+            }
+        }
+    }
+
+    "(Could not extract plist from mobileprovision — file may be malformed)".to_string()
+}
+
 fn format_bytes(bytes: usize) -> String {
     if bytes >= 1_000_000 {
         format!("{:.1} MB", bytes as f64 / 1_000_000.0)

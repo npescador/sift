@@ -153,6 +153,55 @@ pub enum SiftCommand {
         file: String,
     },
 
+    /// Parse an Xcode project.pbxproj file into a compact summary
+    ///
+    /// Extracts targets, bundle IDs, signing configuration, build phases,
+    /// and inter-target dependencies.
+    ///
+    ///   sift pbxproj MyApp.xcodeproj/project.pbxproj
+    Pbxproj {
+        /// Path to the project.pbxproj file
+        file: String,
+    },
+
+    /// Parse an Info.plist or .entitlements file into a compact summary
+    ///
+    /// Shows bundle ID, display name, version, device families, privacy
+    /// permission keys, and capabilities.
+    ///
+    ///   sift plutil Info.plist
+    ///   sift plutil MyApp.entitlements
+    Plutil {
+        /// Path to the .plist or .entitlements file
+        file: String,
+    },
+
+    /// Parse an Apple .mobileprovision profile into a compact summary
+    ///
+    /// Shows profile type, app ID, team, expiry status, entitlements,
+    /// and device count without requiring Xcode or security CLI.
+    ///
+    ///   sift provisioning MyApp_Dev.mobileprovision
+    Provisioning {
+        /// Path to the .mobileprovision file
+        file: String,
+    },
+
+    /// Parse xcrun xccov coverage JSON into a compact summary
+    ///
+    /// Shows overall coverage percentage, files below threshold, and
+    /// uncovered functions. Reads from stdin or a file.
+    ///
+    ///   xcrun xccov view --report --json MyApp.xcresult | sift xccov
+    ///   sift xccov coverage.json
+    Xccov {
+        /// Optional path to a .json coverage report (reads stdin if omitted)
+        file: Option<String>,
+        /// Coverage threshold percentage (default: 80)
+        #[arg(long, default_value = "80")]
+        threshold: f64,
+    },
+
     /// Run a command with smart output filtering
     #[command(external_subcommand)]
     Proxy(Vec<String>),
