@@ -41,6 +41,8 @@ fn run() -> Result<i32> {
     } else {
         None
     };
+    let default_verbosity = cli_verbosity_override.unwrap_or(Verbosity::Compact);
+    let outline = cli.outline;
 
     match cli.command {
         cli::SiftCommand::Completions { shell } => {
@@ -55,6 +57,18 @@ fn run() -> Result<i32> {
         }
         cli::SiftCommand::Update { check } => {
             update::run(check).map_err(|e| anyhow::anyhow!("{e}"))
+        }
+        cli::SiftCommand::Project { path } => {
+            let result = filters::project::filter_project(&path, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
+        }
+        cli::SiftCommand::Crashlog { file } => {
+            let content = std::fs::read_to_string(&file)
+                .map_err(|e| anyhow::anyhow!("Cannot read '{}': {}", file, e))?;
+            let result = filters::crashlog::filter(&content, default_verbosity);
+            print!("{}", result.content);
+            Ok(0)
         }
         cli::SiftCommand::Init {
             shell,
@@ -157,7 +171,11 @@ fn run() -> Result<i32> {
             } else {
                 executor::execute(program, rest).map_err(|e| anyhow::anyhow!("{e}"))?
             };
-            let filter_output = apply_filter(&args, &output.stdout, verbosity);
+            let filter_output = if outline && matches!(family, CommandFamily::Read) {
+                filters::read::filter_outline(&output.stdout, verbosity)
+            } else {
+                apply_filter(&args, &output.stdout, verbosity)
+            };
 
             if cfg.tracking.enabled {
                 tracking::StatsFile::append(tracking::TrackingRecord::new(
@@ -290,6 +308,7 @@ fn apply_filter(args: &[String], stdout: &str, verbosity: Verbosity) -> filters:
         CommandFamily::Security => filters::codesign::filter_security(stdout, verbosity),
         CommandFamily::Agvtool => filters::agvtool::filter(stdout, verbosity),
         CommandFamily::XcodeSelect => filters::xcode_select::filter(stdout, verbosity),
+        CommandFamily::Periphery => filters::periphery::filter(stdout, verbosity),
         CommandFamily::SwiftBuild(sub) => match sub {
             commands::swift_build::SwiftBuildSubcommand::Build => {
                 filters::swift_build::filter(stdout, verbosity)

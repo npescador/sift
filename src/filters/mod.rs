@@ -3,6 +3,7 @@ pub mod util;
 
 pub mod agvtool;
 pub mod codesign;
+pub mod crashlog;
 pub mod curl;
 pub mod docc;
 pub mod fastlane;
@@ -11,7 +12,9 @@ pub mod git_log;
 pub mod git_status;
 pub mod grep;
 pub mod ls_xcode;
+pub mod periphery;
 pub mod pod;
+pub mod project;
 pub mod read;
 pub mod swift_build;
 pub mod swift_package;

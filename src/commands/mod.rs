@@ -42,6 +42,7 @@ pub enum CommandFamily {
     XcodeSelect,
     XcResultTool,
     DocC,
+    Periphery,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -71,6 +72,7 @@ impl CommandFamily {
             CommandFamily::XcodeSelect => "xcode-select",
             CommandFamily::XcResultTool => "xcresulttool",
             CommandFamily::DocC => "docc",
+            CommandFamily::Periphery => "periphery",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -115,6 +117,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "xcode-select" => CommandFamily::XcodeSelect,
         "xcresulttool" => CommandFamily::XcResultTool,
         "docc" => CommandFamily::DocC,
+        "periphery" => CommandFamily::Periphery,
         _ => CommandFamily::Unknown,
     }
 }
