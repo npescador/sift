@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**`sift crashlog` — Apple crash report parser**
+- New `sift crashlog <file>` subcommand — reads `.crash` (plain text) and `.ips` (JSON) Apple crash reports
+- Extracts: exception type/subtype, device model, OS version, app version, crashed thread backtrace
+- Collapses system frames (libsystem*, CoreFoundation, UIKit, Foundation, libdispatch) in Compact mode
+- Shows only the crashed thread — strips all other threads, binary images, and metadata
+- Diagnosis hints: maps common exception types (SIGSEGV, SIGABRT, EXC_CRASH) to likely root causes
+- ~85–95% size reduction on real crash reports vs raw `.crash` / `.ips` files
+- 8 unit tests with realistic crash fixture including binary images and multi-thread sections
+
+**`sift project` — iOS project snapshot**
+- New `sift project [path]` subcommand — produces a compact overview of an iOS/macOS project
+- Reads CocoaPods dependencies from `Podfile.lock`
+- Reads SPM dependencies from `Package.resolved` (v1 and v2 format)
+- Reads Carthage dependencies from `Cartfile.resolved`
+- Parses `project.pbxproj` heuristically for targets, product types, configurations, and minimum iOS
+- Counts source files by type: `.swift`, `.m`, `.storyboard`, `.xib` (skipping DerivedData/Pods/.build)
+- Skips `.xcodeproj`/`.xcworkspace` extensions automatically when given as path argument
+- 6 unit tests covering pod parsing, target normalization, pascal_case conversion
+
+**`sift periphery` — dead code filter**
+- New `sift periphery` filter for `periphery scan` output
+- Groups unused symbols by file, shows kind (Function/Class/Var/Protocol) and line number
+- Compact: groups by file with per-symbol lines; -v shows full detail
+- ~80% reduction on typical periphery scan output
+- 8 unit tests
+
+**`sift read --outline` — Swift signature extraction**
+- New `--outline` global flag — when reading a `.swift` file, extracts declarations only (no bodies)
+- Shows: imports, class/struct/enum/protocol/actor/extension declarations, func signatures, var/let properties
+- Private symbols hidden in Compact; shown with `-v`; appends count summary `// +N private symbols omitted`
+- Implementation bodies stripped — only signatures remain (func name, parameters, return type)
+- Computed properties with `{ get }` / `{ get set }` annotations preserved as-is
+- Passes through unchanged at `-vv` / `-vvv` (full file content)
+- 6 new outline unit tests; total test count 800+ (up from 775 before v0.8.0)
+
 **`sift update` — self-update from GitHub releases**
 - New `sift update` subcommand — checks the latest release on GitHub and replaces the running binary in-place
 - `sift update --check` — only reports if an update is available without installing

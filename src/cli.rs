@@ -25,6 +25,12 @@ pub struct Cli {
     #[arg(long, global = true)]
     pub stream: bool,
 
+    /// Extract Swift signatures only (types, method signatures, properties — no bodies)
+    ///
+    /// Only applies when reading .swift files via the Proxy subcommand.
+    #[arg(long, global = true)]
+    pub outline: bool,
+
     #[command(subcommand)]
     pub command: SiftCommand,
 }
@@ -119,6 +125,32 @@ pub enum SiftCommand {
         /// Only check if an update is available — do not download or install
         #[arg(long)]
         check: bool,
+    },
+
+    /// Show a compact snapshot of an iOS/macOS project
+    ///
+    /// Reads Podfile.lock, Package.resolved, Cartfile.resolved, and
+    /// project.pbxproj to produce a high-signal summary: targets, min iOS,
+    /// dependencies, and source file counts.
+    ///
+    ///   sift project            # analyse current directory
+    ///   sift project ./MyApp    # analyse a specific path
+    Project {
+        /// Path to the project directory or .xcodeproj (default: current directory)
+        #[arg(default_value = ".")]
+        path: String,
+    },
+
+    /// Parse an Apple crash report (.crash or .ips) into a compact summary
+    ///
+    /// Extracts exception type, device/OS info, and the crashed thread
+    /// backtrace — stripping system frames, binary images, and metadata.
+    ///
+    ///   sift crashlog report.crash
+    ///   sift crashlog report.ips
+    Crashlog {
+        /// Path to the .crash or .ips file
+        file: String,
     },
 
     /// Run a command with smart output filtering
