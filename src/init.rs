@@ -92,12 +92,20 @@ pub struct InitOptions {
     /// Optional comma-separated list of commands to wrap (e.g. "git,xcodebuild").
     /// When `None`, all supported commands are wrapped.
     pub commands: Option<String>,
+    /// If set, install completion script for the given shell automatically.
+    pub completions: Option<clap_complete::Shell>,
 }
 
 /// Entry point called from `main.rs`.
 pub fn run(opts: InitOptions) -> Result<()> {
     // Default: if no flag specified, treat as --show
-    if !opts.shell && !opts.claude && !opts.copilot && !opts.xcode_project && !opts.uninstall {
+    if !opts.shell
+        && !opts.claude
+        && !opts.copilot
+        && !opts.xcode_project
+        && !opts.uninstall
+        && opts.completions.is_none()
+    {
         return show_status();
     }
 
@@ -121,6 +129,10 @@ pub fn run(opts: InitOptions) -> Result<()> {
     }
     if opts.xcode_project {
         install_xcode_project_context()?;
+    }
+
+    if let Some(shell) = opts.completions {
+        install_completions(shell)?;
     }
 
     Ok(())
@@ -479,6 +491,62 @@ fn build_xcode_block(info: &XcodeProjectInfo) -> String {
          {XCODE_BLOCK_END}\n",
         name = info.name,
     )
+}
+
+/// Install the completion script for the given shell to the standard location.
+fn install_completions(shell: clap_complete::Shell) -> Result<()> {
+    use std::io::Write;
+
+    let mut cmd = crate::cli::Cli::command();
+    let mut buf = Vec::new();
+    crate::completions::generate(shell, &mut cmd, &mut buf);
+
+    let dest = completions_path(shell)?;
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)
+            .with_context(|| format!("failed to create directory {}", parent.display()))?;
+    }
+    fs::File::create(&dest)
+        .with_context(|| format!("failed to create {}", dest.display()))?
+        .write_all(&buf)
+        .with_context(|| format!("failed to write {}", dest.display()))?;
+
+    println!("✓  {} completions installed → {}", shell, dest.display());
+    println!();
+
+    match shell {
+        clap_complete::Shell::Zsh => {
+            println!("  Reload with:  source {}", dest.display());
+            println!(
+                "  Or add to .zshrc:  fpath=({} $fpath)",
+                dest.parent().unwrap().display()
+            );
+        }
+        clap_complete::Shell::Bash => {
+            println!("  Reload with:  source {}", dest.display());
+        }
+        clap_complete::Shell::Fish => {
+            println!("  Fish loads completions automatically from ~/.config/fish/completions/");
+        }
+        _ => {}
+    }
+
+    Ok(())
+}
+
+/// Resolve the standard installation path for completions of the given shell.
+fn completions_path(shell: clap_complete::Shell) -> Result<PathBuf> {
+    let home = std::env::var("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from("~"));
+
+    let path = match shell {
+        clap_complete::Shell::Zsh => home.join(".zsh").join("completions").join("_sift"),
+        clap_complete::Shell::Bash => home.join(".local").join("share").join("bash-completion").join("completions").join("sift"),
+        clap_complete::Shell::Fish => home.join(".config").join("fish").join("completions").join("sift.fish"),
+        other => anyhow::bail!("no default install path for {other} — use `sift completions {other}` and redirect manually"),
+    };
+    Ok(path)
 }
 
 fn uninstall_all() -> Result<()> {

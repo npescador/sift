@@ -1,4 +1,4 @@
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
 #[command(
@@ -81,6 +81,44 @@ pub enum SiftCommand {
         /// Remove all sift hooks and instruction files installed by sift init
         #[arg(long)]
         uninstall: bool,
+
+        /// Install completion script for the given shell to the standard location.
+        /// Alternatively, use `sift completions <shell>` to print to stdout.
+        #[arg(long, value_name = "SHELL", value_enum)]
+        completions: Option<clap_complete::Shell>,
+    },
+
+    /// Generate shell completion scripts
+    ///
+    /// Prints a completion script to stdout. Redirect to the appropriate
+    /// location for your shell:
+    ///
+    ///   sift completions zsh > ~/.zsh/completions/_sift
+    ///   sift completions bash > /usr/local/etc/bash_completion.d/sift
+    ///   sift completions fish > ~/.config/fish/completions/sift.fish
+    Completions {
+        /// Shell to generate completions for
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+
+    /// Run built-in filter benchmarks and show reduction percentages
+    ///
+    /// Runs each supported command family's filter against a realistic
+    /// fixture and reports input size, output size, and bytes saved.
+    Benchmark,
+
+    /// Check for a newer version and optionally self-update
+    ///
+    /// Downloads the latest release from GitHub and replaces the current
+    /// binary in-place. Requires `curl` to be available on $PATH.
+    ///
+    ///   sift update           # check and install latest
+    ///   sift update --check   # check only, do not install
+    Update {
+        /// Only check if an update is available — do not download or install
+        #[arg(long)]
+        check: bool,
     },
 
     /// Run a command with smart output filtering
@@ -102,5 +140,10 @@ impl Cli {
             2 => crate::filters::Verbosity::VeryVerbose,
             _ => crate::filters::Verbosity::Maximum,
         }
+    }
+
+    /// Return a mutable clap `Command` for completion generation.
+    pub fn command() -> clap::Command {
+        <Self as CommandFactory>::command()
     }
 }

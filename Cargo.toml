@@ -1,10 +1,13 @@
+[workspace]
+members = [".", "crates/sift-lib"]
+resolver = "2"
+
 [package]
 name = "sift-cli"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Smart output reduction layer for AI-assisted coding workflows"
-license = "MIT"
 repository = "https://github.com/npescador/sift"
 homepage = "https://github.com/npescador/sift"
 readme = "README.md"
@@ -22,6 +25,7 @@ path = "src/main.rs"
 [dependencies]
 # CLI argument parsing — industry standard, derive API keeps boilerplate minimal
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 # Ergonomic error type derivation for library-facing errors
 thiserror = "2"
 # Application-level error propagation with context in main.rs

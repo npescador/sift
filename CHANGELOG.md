@@ -9,6 +9,66 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.7.0] — 2026-04-13
+
+Quality-of-life release: shell completions, per-command config, programmatic library API, built-in benchmarks, and self-update.
+
+### Added
+
+**`sift update` — self-update from GitHub releases**
+- New `sift update` subcommand — checks the latest release on GitHub and replaces the running binary in-place
+- `sift update --check` — only reports if an update is available without installing
+- Uses `curl` (always available on macOS/Linux) and `tar` — zero new dependencies
+- Atomic replacement: downloads to a temp file, then `fs::rename` over the current executable
+- Detects target triple automatically (`aarch64-apple-darwin`, `x86_64-apple-darwin`, `x86_64-unknown-linux-gnu`, etc.)
+- Graceful fallback: on download failure, prints direct GitHub releases URL
+- 7 new tests covering JSON tag parsing, semver comparison, target detection; test count 784 → 793
+
+**`sift benchmark` — built-in filter benchmarks**
+- New `sift benchmark` subcommand — runs all 17 built-in command family fixtures through their filters at Compact verbosity and prints a reduction table
+- Output: per-family input/output/saved columns + overall total row
+- Fixtures cover: `git status/diff/log`, `grep`, `cat`, `xcodebuild build/test`, `swiftlint`, `swift build/test/package`, `fastlane`, `xcrun simctl`, `curl`, `agvtool`, `codesign`, `swiftformat`
+- 4 new tests in `benchmark.rs`; test count 756 → 784 (across workspace)
+
+**`sift-lib` crate — programmatic library API**
+- New `sift-lib` crate at `crates/sift-lib/` — add `sift-lib = "0.7"` to use Sift as a library
+- `filter(args, stdout, verbosity) -> FilterOutput` — filter pre-captured output without spawning a subprocess
+- `run(args, verbosity) -> Result<RunResult>` — execute a command and return filtered output in one call
+- `detect_family(args) -> CommandFamily` — inspect how Sift classifies a command
+- Re-exports `Verbosity`, `FilterOutput`, `CommandFamily`, `SiftError` from `sift-cli`
+- Workspace restructured: root `Cargo.toml` is now a workspace with members `[".","crates/sift-lib"]`
+- 4 new tests in `sift-lib`; test count 749 → 756 (across workspace)
+
+**Per-command configuration overrides (`[commands.<name>]`)**
+- New `[commands.<name>]` section in `~/.config/sift/config.toml` — override verbosity per command family
+- `verbosity` field: one of `compact`, `verbose`, `very_verbose`, `maximum`, `raw`
+- `max_lines` field: cap output lines for this command (parsed; filter-level wiring in a future release)
+- Priority chain: CLI flags > `[commands.<name>]` > `[defaults]` > built-in compact
+- `Config::resolve_verbosity(family_name, cli_override)` method in `config.rs` centralises resolution
+- 7 new tests covering TOML parsing, priority, fallback, and edge cases; test count 741 → 749
+- Example config:
+
+  ```toml
+  [commands.git]
+  verbosity = "verbose"
+
+  [commands.xcodebuild]
+  verbosity = "compact"
+  max_lines = 30
+  ```
+
+**Shell completions (`sift completions <shell>`)**
+- New `sift completions <shell>` subcommand — prints a completion script to stdout for `bash`, `zsh`, or `fish`
+- `sift init --completions <shell>` — installs the script to the standard location automatically:
+  - zsh → `~/.zsh/completions/_sift`
+  - bash → `~/.local/share/bash-completion/completions/sift`
+  - fish → `~/.config/fish/completions/sift.fish`
+- Completions cover all sift subcommands (`stats`, `init`, `completions`), all global flags (`--raw`, `--json`, `--stream`, `-v`), and all 21 known proxy command families with their subcommands (e.g. `sift xcodebuild <TAB>` → `build`, `test`, `archive`, `-list`, `-showBuildSettings`)
+- Custom `src/completions.rs` module — handcrafted zsh/bash/fish scripts with deep proxy-command awareness; falls back to `clap_complete` for other shells
+- 13 new tests in `completions.rs`; test count 715 → 741
+
+---
+
 ## [0.6.0] — 2026-04-13
 
 Structured filter output and streaming executor. All 27 command families now support `--json` output via typed intermediate representations. Long-running build and test commands stream live progress to stderr.
@@ -229,7 +289,8 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/npescador/sift/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/npescador/sift/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/npescador/sift/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/npescador/sift/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/npescador/sift/compare/v0.3.0...v0.4.0

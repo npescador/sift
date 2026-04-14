@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 
 /// Top-level configuration loaded from `~/.config/sift/config.toml`.
 ///
@@ -8,11 +9,21 @@ use serde::Deserialize;
 #[serde(default)]
 pub struct Config {
     pub defaults: DefaultsConfig,
-    /// Phase 10: used by tracking::Tracker to decide whether to record metrics.
-    #[allow(dead_code)]
     pub tracking: TrackingConfig,
     pub tee: TeeConfig,
     pub streaming: StreamingConfig,
+    /// Per-command overrides. Keys are command family names (e.g. `"git"`,
+    /// `"xcodebuild"`). Example config:
+    ///
+    /// ```toml
+    /// [commands.git]
+    /// verbosity = "verbose"
+    ///
+    /// [commands.xcodebuild]
+    /// verbosity = "compact"
+    /// max_lines = 30
+    /// ```
+    pub commands: HashMap<String, CommandConfig>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -27,8 +38,6 @@ pub struct DefaultsConfig {
 #[derive(Debug, Deserialize)]
 #[serde(default)]
 pub struct TrackingConfig {
-    /// Phase 10: gates tracking::Tracker recording.
-    #[allow(dead_code)]
     pub enabled: bool,
 }
 
@@ -67,6 +76,55 @@ impl Default for TeeConfig {
 pub struct StreamingConfig {
     /// When true, enable streaming by default (can be overridden with `--stream`).
     pub enabled: bool,
+}
+
+/// Per-command configuration override.
+///
+/// All fields are optional — only set the ones you want to override.
+/// Unset fields inherit from `[defaults]`.
+///
+/// Valid `verbosity` values: `"compact"`, `"verbose"`, `"very_verbose"`,
+/// `"maximum"`, `"raw"`.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+pub struct CommandConfig {
+    /// Override verbosity for this command. Empty string means "use default".
+    pub verbosity: String,
+    /// Override maximum output lines for this command. `0` means "use default".
+    pub max_lines: usize,
+}
+
+impl Config {
+    /// Resolve the effective verbosity for a command invocation.
+    ///
+    /// Priority (highest to lowest):
+    /// 1. CLI flags (`--raw`, `-v`, `-vv`, `-vvv`) — always wins
+    /// 2. Per-command `[commands.<name>] verbosity` override
+    /// 3. Global `[defaults] verbosity`
+    /// 4. Built-in default (`compact`)
+    ///
+    /// `cli_override` is `Some(verbosity)` when the user passed an explicit
+    /// CLI flag, and `None` when no flag was given.
+    pub fn resolve_verbosity(
+        &self,
+        family_name: &str,
+        cli_override: Option<crate::filters::Verbosity>,
+    ) -> crate::filters::Verbosity {
+        // CLI flag always wins
+        if let Some(v) = cli_override {
+            return v;
+        }
+
+        // Per-command override
+        if let Some(cmd_cfg) = self.commands.get(family_name) {
+            if !cmd_cfg.verbosity.is_empty() {
+                return parse_verbosity(&cmd_cfg.verbosity);
+            }
+        }
+
+        // Global default
+        parse_verbosity(&self.defaults.verbosity)
+    }
 }
 
 /// Parse a verbosity string from config into a [`crate::filters::Verbosity`] level.
@@ -202,5 +260,79 @@ mod tests {
         let toml_str = "[tee]\nenabled = false\n";
         let cfg: Config = toml::from_str(toml_str).unwrap();
         assert!(!cfg.tee.enabled);
+    }
+
+    // --- Per-command config tests ---
+
+    #[test]
+    fn per_command_config_parses_verbosity() {
+        let toml_str = "[commands.git]\nverbosity = \"verbose\"\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        let git = cfg.commands.get("git").expect("git entry missing");
+        assert_eq!(git.verbosity, "verbose");
+    }
+
+    #[test]
+    fn per_command_config_parses_max_lines() {
+        let toml_str = "[commands.xcodebuild]\nverbosity = \"compact\"\nmax_lines = 30\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        let xb = cfg
+            .commands
+            .get("xcodebuild")
+            .expect("xcodebuild entry missing");
+        assert_eq!(xb.verbosity, "compact");
+        assert_eq!(xb.max_lines, 30);
+    }
+
+    #[test]
+    fn resolve_verbosity_cli_wins_over_command_override() {
+        let toml_str = "[commands.git]\nverbosity = \"verbose\"\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        // CLI --raw should override the per-command "verbose"
+        let v = cfg.resolve_verbosity("git", Some(Verbosity::Raw));
+        assert!(matches!(v, Verbosity::Raw));
+    }
+
+    #[test]
+    fn resolve_verbosity_command_override_takes_precedence_over_global_default() {
+        let toml_str =
+            "[defaults]\nverbosity = \"compact\"\n\n[commands.git]\nverbosity = \"verbose\"\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        let v = cfg.resolve_verbosity("git", None);
+        assert!(matches!(v, Verbosity::Verbose));
+    }
+
+    #[test]
+    fn resolve_verbosity_falls_back_to_global_default_when_no_command_override() {
+        let toml_str = "[defaults]\nverbosity = \"very_verbose\"\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        let v = cfg.resolve_verbosity("git", None);
+        assert!(matches!(v, Verbosity::VeryVerbose));
+    }
+
+    #[test]
+    fn resolve_verbosity_falls_back_to_compact_when_nothing_set() {
+        let cfg: Config = toml::from_str("").unwrap();
+        let v = cfg.resolve_verbosity("git", None);
+        assert!(matches!(v, Verbosity::Compact));
+    }
+
+    #[test]
+    fn resolve_verbosity_unknown_command_uses_global_default() {
+        let toml_str =
+            "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nverbosity = \"raw\"\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        // "grep" has no override — should fall back to global "verbose"
+        let v = cfg.resolve_verbosity("grep", None);
+        assert!(matches!(v, Verbosity::Verbose));
+    }
+
+    #[test]
+    fn per_command_config_empty_verbosity_falls_back_to_global() {
+        // An entry with empty verbosity should not override the global default
+        let toml_str = "[defaults]\nverbosity = \"verbose\"\n\n[commands.git]\nmax_lines = 50\n";
+        let cfg: Config = toml::from_str(toml_str).unwrap();
+        let v = cfg.resolve_verbosity("git", None);
+        assert!(matches!(v, Verbosity::Verbose));
     }
 }

@@ -107,15 +107,16 @@ Structured filter output and streaming executor for long-running commands.
 
 ---
 
-## v0.7.0 — Shell Completions & sift-lib 🔮 Planned
+## v0.7.0 — Shell Completions & sift-lib ✅ Released
 
 Quality-of-life improvements for daily use, plus the programmatic crate API.
 
-- [ ] `sift-lib` crate — programmatic library API for embedding Sift in other tools
-- [ ] Shell completion scripts (zsh, bash, fish)
-- [ ] `sift benchmark` command for measuring real-world token savings
-- [ ] Per-command override configuration (`[commands.git]` etc.)
-- [ ] `sift update` — self-update from GitHub releases
+- [x] Shell completion scripts (zsh, bash, fish) — `sift completions <shell>`
+- [x] `sift init --completions <shell>` — auto-install to standard location
+- [x] Per-command override configuration (`[commands.git]` etc.)
+- [x] `sift-lib` crate — programmatic library API for embedding Sift in other tools
+- [x] `sift benchmark` command for measuring real-world token savings
+- [x] `sift update` — self-update from GitHub releases
 
 ---
 
