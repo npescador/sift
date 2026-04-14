@@ -7,13 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
----
-
-## [0.7.0] — 2026-04-13
-
-Quality-of-life release: shell completions, per-command config, programmatic library API, built-in benchmarks, and self-update.
+## [0.8.0] — 2026-04-14
 
 ### Added
+
+**`sift benchmark` — crashlog and periphery fixtures**
+- Added `crashlog` and `periphery` benchmark fixtures to `sift benchmark`
+- Total benchmark families: 19 (was 17)
+
+**`sift find` — iOS-smart exclusions and grouping**
+- `Pods` directory now fully excluded (previously only `Pods/Pods` sub-path was excluded)
+- Compact output appends exclusion summary: `(N paths excluded: Pods ×3, DerivedData ×12, .build ×5)`
+- Verbose (`-v`) output groups paths by parent directory with indented filenames
+- `first_excluded_segment` replaces `has_excluded_segment` internally — same semantics, returns which segment matched
+- 5 new tests covering Pods exclusion, summary line, verbose grouping; test count +5
+
+**`sift crashlog` — Apple crash report parser**
+- New `sift crashlog <file>` subcommand — reads `.crash` (plain text) and `.ips` (JSON) Apple crash reports
+- Extracts: exception type/subtype, device model, OS version, app version, crashed thread backtrace
+- Collapses system frames (libsystem*, CoreFoundation, UIKit, Foundation, libdispatch) in Compact mode
+- Shows only the crashed thread — strips all other threads, binary images, and metadata
+- Diagnosis hints: maps common exception types (SIGSEGV, SIGABRT, EXC_CRASH) to likely root causes
+- ~85–95% size reduction on real crash reports vs raw `.crash` / `.ips` files
+- 8 unit tests with realistic crash fixture including binary images and multi-thread sections
+
+**`sift project` — iOS project snapshot**
+- New `sift project [path]` subcommand — produces a compact overview of an iOS/macOS project
+- Reads CocoaPods dependencies from `Podfile.lock`
+- Reads SPM dependencies from `Package.resolved` (v1 and v2 format)
+- Reads Carthage dependencies from `Cartfile.resolved`
+- Parses `project.pbxproj` heuristically for targets, product types, configurations, and minimum iOS
+- Counts source files by type: `.swift`, `.m`, `.storyboard`, `.xib` (skipping DerivedData/Pods/.build)
+- Skips `.xcodeproj`/`.xcworkspace` extensions automatically when given as path argument
+- 6 unit tests covering pod parsing, target normalization, pascal_case conversion
+
+**`sift periphery` — dead code filter**
+- New `sift periphery` filter for `periphery scan` output
+- Groups unused symbols by file, shows kind (Function/Class/Var/Protocol) and line number
+- Compact: groups by file with per-symbol lines; -v shows full detail
+- ~80% reduction on typical periphery scan output
+- 8 unit tests
+
+**`sift read --outline` — Swift signature extraction**
+- New `--outline` global flag — when reading a `.swift` file, extracts declarations only (no bodies)
+- Shows: imports, class/struct/enum/protocol/actor/extension declarations, func signatures, var/let properties
+- Private symbols hidden in Compact; shown with `-v`; appends count summary `// +N private symbols omitted`
+- Implementation bodies stripped — only signatures remain (func name, parameters, return type)
+- Computed properties with `{ get }` / `{ get set }` annotations preserved as-is
+- Passes through unchanged at `-vv` / `-vvv` (full file content)
+- 6 new outline unit tests; total test count 800+ (up from 775 before v0.8.0)
 
 **`sift update` — self-update from GitHub releases**
 - New `sift update` subcommand — checks the latest release on GitHub and replaces the running binary in-place
@@ -31,7 +73,7 @@ Quality-of-life release: shell completions, per-command config, programmatic lib
 - 4 new tests in `benchmark.rs`; test count 756 → 784 (across workspace)
 
 **`sift-lib` crate — programmatic library API**
-- New `sift-lib` crate at `crates/sift-lib/` — add `sift-lib = "0.7"` to use Sift as a library
+- New `sift-lib` crate at `crates/sift-lib/` — add `sift-lib = "0.6"` to use Sift as a library
 - `filter(args, stdout, verbosity) -> FilterOutput` — filter pre-captured output without spawning a subprocess
 - `run(args, verbosity) -> Result<RunResult>` — execute a command and return filtered output in one call
 - `detect_family(args) -> CommandFamily` — inspect how Sift classifies a command
@@ -289,8 +331,7 @@ First MVP release. All core command filters, config file support, and persistent
 
 ---
 
-[Unreleased]: https://github.com/npescador/sift/compare/v0.7.0...HEAD
-[0.7.0]: https://github.com/npescador/sift/compare/v0.6.0...v0.7.0
+[Unreleased]: https://github.com/npescador/sift/compare/v0.6.0...HEAD
 [0.6.0]: https://github.com/npescador/sift/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/npescador/sift/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/npescador/sift/compare/v0.3.0...v0.4.0

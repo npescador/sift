@@ -4,10 +4,11 @@ resolver = "2"
 
 [package]
 name = "sift-cli"
-version = "0.7.0"
+version = "0.8.0"
 edition = "2021"
 rust-version = "1.75"
 description = "Smart output reduction layer for AI-assisted coding workflows"
+license = "MIT"
 repository = "https://github.com/npescador/sift"
 homepage = "https://github.com/npescador/sift"
 readme = "README.md"

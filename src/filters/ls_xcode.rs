@@ -54,7 +54,7 @@ const EXCLUDED_SEGMENTS: &[&str] = &[
     "__MACOSX",
     "node_modules",
     ".git",
-    "Pods/Pods",
+    "Pods",
     "xcuserdata",
     "xcshareddata",
     ".swp",
@@ -99,30 +99,6 @@ pub fn parse_ls(raw: &str) -> LsResult {
             if trimmed != "." && trimmed != ".." && is_relevant(trimmed) {
                 entries.push(trimmed.to_string());
             }
-        }
-    }
-
-    let total_shown = entries.len();
-    LsResult {
-        entries,
-        total_shown,
-    }
-}
-
-pub fn parse_find(raw: &str) -> LsResult {
-    let mut entries: Vec<String> = Vec::new();
-
-    for line in raw.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        if has_excluded_segment(trimmed) {
-            continue;
-        }
-        let name = path_filename(trimmed);
-        if is_relevant(name) || is_directory_entry(trimmed) {
-            entries.push(trimmed.to_string());
         }
     }
 
@@ -199,6 +175,10 @@ pub fn filter_ls(raw: &str, verbosity: Verbosity) -> FilterOutput {
 }
 
 /// Filter `find` output to Xcode-relevant paths.
+///
+/// Compact: flat list of kept paths + exclusion summary line.
+/// Verbose: paths grouped by parent directory + exclusion summary.
+/// VeryVerbose+: raw passthrough.
 pub fn filter_find(raw: &str, verbosity: Verbosity) -> FilterOutput {
     let original_bytes = raw.len();
 
@@ -206,19 +186,150 @@ pub fn filter_find(raw: &str, verbosity: Verbosity) -> FilterOutput {
         return FilterOutput::passthrough(raw);
     }
 
-    let result = parse_find(raw);
+    let mut excluded_counts: std::collections::HashMap<&str, usize> =
+        std::collections::HashMap::new();
+    let mut total_lines = 0usize;
+    let mut kept: Vec<String> = Vec::new();
 
-    if result.entries.is_empty() {
+    for line in raw.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+        total_lines += 1;
+
+        if let Some(seg) = first_excluded_segment(trimmed) {
+            *excluded_counts.entry(seg).or_insert(0) += 1;
+            continue;
+        }
+
+        let name = path_filename(trimmed);
+        if is_relevant(name) || is_directory_entry(trimmed) {
+            kept.push(trimmed.to_string());
+        } else {
+            *excluded_counts.entry("(other)").or_insert(0) += 1;
+        }
+    }
+
+    if kept.is_empty() {
         return FilterOutput::passthrough(raw);
     }
 
-    let out = result.entries.join("\n") + "\n";
+    let result = LsResult {
+        total_shown: kept.len(),
+        entries: kept.clone(),
+    };
+
+    let out = match verbosity {
+        Verbosity::Verbose => format_grouped(&kept, &excluded_counts, total_lines),
+        _ => format_flat(&kept, &excluded_counts, total_lines),
+    };
+
     let filtered_bytes = out.len();
     FilterOutput {
         content: out,
         original_bytes,
         filtered_bytes,
         structured: serde_json::to_value(&result).ok(),
+    }
+}
+
+/// Flat list output (Compact) — one path per line + trailing exclusion summary.
+fn format_flat(
+    entries: &[String],
+    excluded: &std::collections::HashMap<&str, usize>,
+    total: usize,
+) -> String {
+    let mut out = String::new();
+    for e in entries {
+        out.push_str(e);
+        out.push('\n');
+    }
+    push_exclusion_summary(&mut out, excluded, total, entries.len());
+    out
+}
+
+/// Grouped output (Verbose) — entries grouped under their parent directory header.
+fn format_grouped(
+    entries: &[String],
+    excluded: &std::collections::HashMap<&str, usize>,
+    total: usize,
+) -> String {
+    use std::collections::BTreeMap;
+
+    let mut groups: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+    for entry in entries {
+        let parent = path_parent(entry);
+        groups.entry(parent.to_string()).or_default().push(entry);
+    }
+
+    let mut out = String::new();
+    for (dir, files) in &groups {
+        out.push_str(dir);
+        out.push_str("/\n");
+        for f in files {
+            out.push_str("  ");
+            out.push_str(path_filename(f));
+            out.push('\n');
+        }
+    }
+
+    push_exclusion_summary(&mut out, excluded, total, entries.len());
+    out
+}
+
+fn push_exclusion_summary(
+    out: &mut String,
+    excluded: &std::collections::HashMap<&str, usize>,
+    total: usize,
+    kept: usize,
+) {
+    let n_excluded = total.saturating_sub(kept);
+    if n_excluded == 0 || excluded.is_empty() {
+        return;
+    }
+    let mut pairs: Vec<(&&str, &usize)> = excluded.iter().collect();
+    pairs.sort_by(|a, b| b.1.cmp(a.1));
+    let detail: Vec<String> = pairs
+        .iter()
+        .filter(|(k, _)| **k != "(other)")
+        .map(|(k, v)| format!("{} ×{}", k, v))
+        .collect();
+    if detail.is_empty() {
+        out.push_str(&format!("({n_excluded} paths excluded)\n"));
+    } else {
+        out.push_str(&format!(
+            "({n_excluded} paths excluded: {})\n",
+            detail.join(", ")
+        ));
+    }
+}
+
+/// Returns the first excluded segment name if the path should be excluded.
+fn first_excluded_segment(path: &str) -> Option<&'static str> {
+    for seg in EXCLUDED_SEGMENTS {
+        if path.split('/').any(|part| part == *seg)
+            || path.contains(&format!("/{seg}/"))
+            || path.starts_with(&format!("{seg}/"))
+        {
+            return Some(seg);
+        }
+    }
+    None
+}
+
+/// Return the parent directory portion of a path.
+fn path_parent(path: &str) -> &str {
+    let trimmed = path.trim_end_matches('/');
+    if let Some(pos) = trimmed.rfind('/') {
+        let parent = &trimmed[..pos];
+        if parent.is_empty() {
+            "."
+        } else {
+            parent
+        }
+    } else {
+        "."
     }
 }
 
@@ -268,14 +379,6 @@ fn path_filename(path: &str) -> &str {
 fn is_directory_entry(path: &str) -> bool {
     let name = path_filename(path);
     !name.contains('.') && !name.is_empty()
-}
-
-fn has_excluded_segment(path: &str) -> bool {
-    EXCLUDED_SEGMENTS.iter().any(|seg| {
-        path.split('/').any(|part| part == *seg)
-            || path.contains(&format!("/{seg}/"))
-            || path.starts_with(&format!("{seg}/"))
-    })
 }
 
 fn is_relevant(name: &str) -> bool {
@@ -383,8 +486,9 @@ drwxr-xr-x   4 user  staff   128 Apr  5 08:00 Sources
     #[test]
     fn find_drops_build_paths() {
         let out = filter_find(FIND_OUTPUT, Verbosity::Compact);
+        // Paths under .build and DerivedData should not appear as full paths
         assert!(!out.content.contains(".build/debug/MyApp"));
-        assert!(!out.content.contains("DerivedData"));
+        assert!(!out.content.contains("DerivedData/Build"));
     }
 
     #[test]
@@ -421,9 +525,9 @@ drwxr-xr-x   4 user  staff   128 Apr  5 08:00 Sources
 
     #[test]
     fn has_excluded_segment_build() {
-        assert!(has_excluded_segment("./.build/debug/sift"));
-        assert!(has_excluded_segment("./DerivedData/Build/foo.o"));
-        assert!(!has_excluded_segment("./Sources/App/ContentView.swift"));
+        assert!(first_excluded_segment("./.build/debug/sift").is_some());
+        assert!(first_excluded_segment("./DerivedData/Build/foo.o").is_some());
+        assert!(first_excluded_segment("./Sources/App/ContentView.swift").is_none());
     }
 
     #[test]
@@ -453,5 +557,54 @@ drwxr-xr-x   4 user  staff   128 Apr  5 08:00 Sources
     fn structured_is_some_on_filter_find() {
         let out = filter_find(FIND_OUTPUT, Verbosity::Compact);
         assert!(out.structured.is_some());
+    }
+
+    const FIND_WITH_PODS: &str = "\
+./Package.swift
+./Sources/MyApp/ContentView.swift
+./Pods/Firebase/FirebaseCore.h
+./Pods/Firebase/FirebaseCore.m
+./Pods/Alamofire/Alamofire.swift
+./DerivedData/Build/foo.o
+./Tests/MyAppTests/Tests.swift
+";
+
+    #[test]
+    fn find_excludes_pods_directory() {
+        let out = filter_find(FIND_WITH_PODS, Verbosity::Compact);
+        assert!(!out.content.contains("Firebase"));
+        assert!(!out.content.contains("Alamofire"));
+    }
+
+    #[test]
+    fn find_compact_shows_exclusion_summary() {
+        let out = filter_find(FIND_WITH_PODS, Verbosity::Compact);
+        assert!(out.content.contains("paths excluded"));
+        assert!(out.content.contains("Pods"));
+    }
+
+    #[test]
+    fn find_verbose_groups_by_directory() {
+        let out = filter_find(FIND_OUTPUT, Verbosity::Verbose);
+        // Grouped format shows directory header with trailing /
+        assert!(out.content.contains("./Sources/MyApp/"));
+        // Filenames shown under directory (indented)
+        assert!(out.content.contains("  ContentView.swift"));
+    }
+
+    #[test]
+    fn find_verbose_shows_exclusion_summary() {
+        let out = filter_find(FIND_WITH_PODS, Verbosity::Verbose);
+        assert!(out.content.contains("paths excluded"));
+    }
+
+    #[test]
+    fn path_parent_extracts_correctly() {
+        assert_eq!(
+            path_parent("./Sources/MyApp/ContentView.swift"),
+            "./Sources/MyApp"
+        );
+        assert_eq!(path_parent("./Package.swift"), ".");
+        assert_eq!(path_parent("Package.swift"), ".");
     }
 }

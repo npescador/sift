@@ -379,3 +379,89 @@ pub struct ReadResult {
     pub shown_lines: usize,
     pub is_binary: bool,
 }
+
+// ---------------------------------------------------------------------------
+// periphery
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct PeripheryResult {
+    pub files: Vec<PeripheryFileGroup>,
+    pub total_symbols: usize,
+    pub total_files: usize,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct PeripheryFileGroup {
+    pub path: String,
+    pub symbols: Vec<PeripherySymbol>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct PeripherySymbol {
+    pub kind: String,
+    pub name: String,
+    pub line: u32,
+}
+
+// ---------------------------------------------------------------------------
+// crashlog
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct CrashlogResult {
+    pub exception_type: String,
+    pub exception_subtype: String,
+    pub app_name: String,
+    pub app_version: String,
+    pub device: String,
+    pub os_version: String,
+    pub crashed_thread: Vec<CrashFrame>,
+    pub diagnosis: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct CrashFrame {
+    pub index: u32,
+    pub module: String,
+    pub symbol: String,
+    pub offset: String,
+}
+
+// ---------------------------------------------------------------------------
+// project
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct ProjectResult {
+    pub name: String,
+    pub targets: Vec<ProjectTarget>,
+    pub min_ios: String,
+    pub swift_version: String,
+    pub dependencies: Vec<ProjectDependency>,
+    pub source_counts: ProjectSourceCounts,
+    pub configurations: Vec<String>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ProjectTarget {
+    pub name: String,
+    pub bundle_id: String,
+    pub kind: String,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ProjectDependency {
+    pub name: String,
+    pub version: String,
+    pub manager: String,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct ProjectSourceCounts {
+    pub swift: usize,
+    pub objc: usize,
+    pub storyboards: usize,
+    pub xibs: usize,
+    pub resources: usize,
+}
