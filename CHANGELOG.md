@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+**`sift benchmark` — crashlog and periphery fixtures**
+- Added `crashlog` and `periphery` benchmark fixtures to `sift benchmark`
+- Total benchmark families: 19 (was 17)
+
+**`sift find` — iOS-smart exclusions and grouping**
+- `Pods` directory now fully excluded (previously only `Pods/Pods` sub-path was excluded)
+- Compact output appends exclusion summary: `(N paths excluded: Pods ×3, DerivedData ×12, .build ×5)`
+- Verbose (`-v`) output groups paths by parent directory with indented filenames
+- `first_excluded_segment` replaces `has_excluded_segment` internally — same semantics, returns which segment matched
+- 5 new tests covering Pods exclusion, summary line, verbose grouping; test count +5
+
 **`sift crashlog` — Apple crash report parser**
 - New `sift crashlog <file>` subcommand — reads `.crash` (plain text) and `.ips` (JSON) Apple crash reports
 - Extracts: exception type/subtype, device model, OS version, app version, crashed thread backtrace

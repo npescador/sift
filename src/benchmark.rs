@@ -4,9 +4,9 @@
 //! command output and reports bytes saved and reduction percentage.
 
 use crate::filters::{
-    self, agvtool, codesign, curl, fastlane, git_diff, git_log, git_status, grep, read,
-    swift_build, swift_package, swift_test, swiftformat, swiftlint, xcodebuild_build,
-    xcodebuild_test, xcrun_simctl, Verbosity,
+    self, agvtool, codesign, crashlog, curl, fastlane, git_diff, git_log, git_status, grep,
+    periphery, read, swift_build, swift_package, swift_test, swiftformat, swiftlint,
+    xcodebuild_build, xcodebuild_test, xcrun_simctl, Verbosity,
 };
 
 // ---------------------------------------------------------------------------
@@ -411,9 +411,82 @@ Running SwiftFormat...
 SwiftFormat completed. 3 files formatted, 1 file skipped.
 ";
 
-// ---------------------------------------------------------------------------
-// Benchmark runner
-// ---------------------------------------------------------------------------
+const CRASHLOG: &str = "\
+Incident Identifier: 12AB34CD-FAKE-0000-0000-000000000000
+Hardware Model:      iPhone15,2
+Process:             MyApp [1234]
+Path:                /private/var/containers/Bundle/Application/ABCD/MyApp.app/MyApp
+Identifier:          com.example.myapp
+Version:             2.1.0 (47)
+AppStoreTools:       14A309
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           com.example.myapp [1234]
+Date/Time:           2024-01-15 12:34:56.789 +0000
+Launch Time:         2024-01-15 12:30:00.000 +0000
+OS Version:          iPhone OS 17.2 (21C62)
+Release Type:        User
+Baseband Version:    2.50.00
+Report Version:      104
+
+Exception Type:  EXC_BAD_ACCESS (SIGSEGV)
+Exception Subtype: KERN_INVALID_ADDRESS at 0x0000000000000010
+VM Region Info: 0x10 is not in any region.  Bytes before following region: 4367638528
+      REGION TYPE                    START - END         [ VSIZE] PRT/MAX SHRMOD  REGION DETAIL
+      UNUSED SPACE AT START
+--->
+      __TEXT                      104000000-104800000    [ 8192K] r-x/r-x SM=COW  ...MyApp
+
+Termination Reason: SIGNAL 11 Segmentation fault: 11
+Terminating Process: exc handler [1234]
+
+Triggered by Thread:  0
+
+Thread 0 name:  Dispatch queue: com.apple.main-thread
+Thread 0 Crashed:
+0   MyApp                    0x00000001045abc12 CheckoutViewModel.checkout(with:) + 48
+1   MyApp                    0x00000001045abc45 closure #1 in CheckoutViewModel.loadCart() + 124
+2   libswiftCore.dylib        0x0000000180000000 swift_task_run + 92
+3   libdispatch.dylib         0x0000000181000000 _dispatch_main_queue_callback_4CF + 44
+4   CoreFoundation             0x0000000182000000 __CFRunLoopRun + 1996
+5   CoreFoundation             0x0000000182000100 CFRunLoopRunSpecific + 608
+6   UIKit                      0x0000000183000000 UIApplicationMain + 800
+7   MyApp                      0x00000001045abc99 main + 56
+
+Thread 1:
+0   libsystem_kernel.dylib   0x0000000182000000 mach_msg_trap + 8
+1   libsystem_kernel.dylib   0x0000000182000010 mach_msg + 72
+2   CoreFoundation             0x0000000182100000 __CFRunLoopServiceMachPort + 372
+
+Thread 2:
+0   libsystem_pthread.dylib  0x0000000182200000 start_wqthread + 8
+
+Binary Images:
+0x100000000 - 0x1047fffff MyApp arm64 <AAAAAAAABBBBCCCCDDDDEEEEFFFFGGGG> /private/var/containers/Bundle/Application/ABCD/MyApp.app/MyApp
+0x180000000 - 0x18001ffff libswiftCore.dylib arm64 <1111222233334444> /usr/lib/swift/libswiftCore.dylib
+0x181000000 - 0x1811fffff libdispatch.dylib arm64 <5555666677778888> /usr/lib/libdispatch.dylib
+0x182000000 - 0x1829fffff CoreFoundation arm64 <9999AAAABBBBCCCC> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+0x183000000 - 0x1839fffff UIKit arm64 <DDDDEEEEFFFFGGGG> /System/Library/Frameworks/UIKit.framework/UIKit
+0x184000000 - 0x1849fffff Foundation arm64 <HHHHIIIIJJJJKKKK> /System/Library/Frameworks/Foundation.framework/Foundation
+";
+
+const PERIPHERY: &str = "\
+Unused code detected — 12 occurrences:
+
+src/PaymentService.swift:42: warning: Function 'validateCard(_:)' is unused
+src/PaymentService.swift:67: warning: Function 'legacyFormatAmount(_:)' is unused
+src/PaymentService.swift:103: warning: Variable 'debugLog' is unused
+src/NetworkClient.swift:15: warning: Class 'MockURLSession' is unused
+src/NetworkClient.swift:88: warning: Function 'retryRequest(_:attempts:)' is unused
+src/CartView.swift:22: warning: Protocol 'CartDelegate' is unused
+src/CartView.swift:55: warning: Function 'configureAccessibility()' is unused
+src/CartView.swift:78: warning: Variable 'animationDuration' is unused
+src/CheckoutViewModel.swift:31: warning: Function 'resetInternalState()' is unused
+src/CheckoutViewModel.swift:95: warning: Variable 'analyticsBuffer' is unused
+src/Models/Order.swift:14: warning: Function 'toDictionary()' is unused
+src/Models/Order.swift:47: warning: Typealias 'OrderID' is unused
+";
 
 /// One row of benchmark output.
 pub struct BenchmarkResult {
@@ -504,6 +577,14 @@ pub fn run_all() -> Vec<BenchmarkResult> {
             "swiftformat",
             Box::new(|s| swiftformat::filter(s, Verbosity::Compact)),
         ),
+        (
+            "crashlog",
+            Box::new(|s| crashlog::filter(s, Verbosity::Compact)),
+        ),
+        (
+            "periphery",
+            Box::new(|s| periphery::filter(s, Verbosity::Compact)),
+        ),
     ];
 
     let inputs: &[&str] = &[
@@ -524,6 +605,8 @@ pub fn run_all() -> Vec<BenchmarkResult> {
         AGVTOOL,
         CODESIGN,
         SWIFTFORMAT,
+        CRASHLOG,
+        PERIPHERY,
     ];
 
     fixtures
