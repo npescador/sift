@@ -132,15 +132,15 @@ Deep iOS project introspection and crash analysis. Focused on the commands AI ag
 
 ---
 
-## v0.9.0 — Project Introspection 🔮 Planned
+## v0.9.0 — Project Introspection ✅ Released
 
 Configuration and signing file parsing — the files AI agents read but no human can parse at a glance.
 
-- [ ] `sift pbxproj <project.pbxproj>` — targets, bundle IDs, signing config, build phases, inter-target dependencies
-- [ ] `sift plutil <file.plist>` — Info.plist and entitlements compact view: identity, privacy permissions, capabilities
-- [ ] `sift provisioning <file.mobileprovision>` — profile type, app ID, team, expiry status, entitlements
-- [ ] `sift xccov <file.xcresult>` — code coverage summary: overall %, files below threshold, uncovered functions
-- [ ] `sift gh run view` / `sift gh run list` — GitHub Actions log filtering for iOS CI (strips timestamps, runner noise; reuses xcodebuild filters)
+- [x] `sift pbxproj <project.pbxproj>` — targets, bundle IDs, signing config, build phases, inter-target dependencies
+- [x] `sift plutil <file.plist>` — Info.plist and entitlements compact view: identity, privacy permissions, capabilities
+- [x] `sift provisioning <file.mobileprovision>` — profile type, app ID, team, expiry status, entitlements
+- [x] `sift xccov <file.xcresult>` — code coverage summary: overall %, files below threshold, uncovered functions
+- [x] `sift gh run view` / `sift gh run list` — GitHub Actions log filtering for iOS CI (strips timestamps, runner noise; reuses xcodebuild filters)
 - [ ] `sift xclogparser <file.xcactivitylog>` — Xcode build activity log: errors, warnings, build phase times, slowest files to compile
 
 ---
