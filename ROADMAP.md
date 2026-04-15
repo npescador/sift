@@ -141,7 +141,7 @@ Configuration and signing file parsing — the files AI agents read but no human
 - [x] `sift provisioning <file.mobileprovision>` — profile type, app ID, team, expiry status, entitlements
 - [x] `sift xccov <file.xcresult>` — code coverage summary: overall %, files below threshold, uncovered functions
 - [x] `sift gh run view` / `sift gh run list` — GitHub Actions log filtering for iOS CI (strips timestamps, runner noise; reuses xcodebuild filters)
-- [ ] `sift xclogparser <file.xcactivitylog>` — Xcode build activity log: errors, warnings, build phase times, slowest files to compile
+- [x] `sift xclogparser <file.xcactivitylog>` — Xcode build activity log: errors, warnings, build phase times, slowest files to compile
 
 ---
 
