@@ -151,8 +151,8 @@ First stable release with full documentation, compatibility guarantees, and broa
 
 - [ ] Stable public API contract for `sift-lib`
 - [ ] Full documentation coverage
-- [ ] Homebrew tap (`brew tap npescador/sift && brew install sift`)
-- [ ] GitHub Actions CI release workflow — cross-compiled binaries per architecture (aarch64-apple-darwin, x86_64-apple-darwin, Linux)
+- [x] Homebrew tap (`brew tap npescador/sift && brew install sift`)
+- [x] GitHub Actions CI release workflow — cross-compiled binaries per architecture (aarch64-apple-darwin, x86_64-apple-darwin, Linux)
 - [ ] Windows support
 - [ ] Performance benchmarks and regression tests
 

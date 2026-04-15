@@ -1,0 +1,91 @@
+name: Update Homebrew Tap
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  update-tap:
+    name: Update homebrew-sift formula
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download release assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          gh release download "${VERSION}" \
+            --repo npescador/sift \
+            --pattern "*.sha256" \
+            --dir assets
+
+      - name: Extract checksums
+        id: checksums
+        run: |
+          SHA_ARM=$(awk '{print $1}' assets/sift-${{ github.event.release.tag_name }}-aarch64-apple-darwin.tar.gz.sha256)
+          SHA_X86=$(awk '{print $1}' assets/sift-${{ github.event.release.tag_name }}-x86_64-apple-darwin.tar.gz.sha256)
+          SHA_LINUX=$(awk '{print $1}' assets/sift-${{ github.event.release.tag_name }}-x86_64-unknown-linux-gnu.tar.gz.sha256)
+          echo "sha_arm=${SHA_ARM}" >> "$GITHUB_OUTPUT"
+          echo "sha_x86=${SHA_X86}" >> "$GITHUB_OUTPUT"
+          echo "sha_linux=${SHA_LINUX}" >> "$GITHUB_OUTPUT"
+
+      - name: Generate formula
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          VERSION_NO_V="${VERSION#v}"
+          SHA_ARM="${{ steps.checksums.outputs.sha_arm }}"
+          SHA_X86="${{ steps.checksums.outputs.sha_x86 }}"
+          SHA_LINUX="${{ steps.checksums.outputs.sha_linux }}"
+
+          cat > sift.rb << FORMULA
+          # frozen_string_literal: true
+
+          class Sift < Formula
+            desc "AI-optimized shell output filter for coding agents"
+            homepage "https://github.com/npescador/sift"
+            version "${VERSION_NO_V}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/npescador/sift/releases/download/v#{version}/sift-v#{version}-aarch64-apple-darwin.tar.gz"
+                sha256 "${SHA_ARM}"
+              else
+                url "https://github.com/npescador/sift/releases/download/v#{version}/sift-v#{version}-x86_64-apple-darwin.tar.gz"
+                sha256 "${SHA_X86}"
+              end
+            end
+
+            on_linux do
+              url "https://github.com/npescador/sift/releases/download/v#{version}/sift-v#{version}-x86_64-unknown-linux-gnu.tar.gz"
+              sha256 "${SHA_LINUX}"
+            end
+
+            def install
+              bin.install "sift"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/sift --version")
+            end
+          end
+          FORMULA
+
+      - name: Push formula to tap repo
+        env:
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+
+          git clone "https://x-access-token:${HOMEBREW_TAP_TOKEN}@github.com/npescador/homebrew-sift.git" tap
+          mkdir -p tap/Formula
+          cp sift.rb tap/Formula/sift.rb
+
+          cd tap
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/sift.rb
+          git commit -m "chore: update sift formula to ${VERSION}"
+          git push

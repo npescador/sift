@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- GitHub Actions release workflow: cross-compiled binaries for `aarch64-apple-darwin`, `x86_64-apple-darwin`, and `x86_64-unknown-linux-gnu` uploaded automatically on tag push
+- Homebrew tap automation (`update-homebrew.yml`): formula in `npescador/homebrew-sift` updated on every release; install via `brew tap npescador/sift && brew install sift`
+
 ## [0.9.0] — Unreleased
 
 ### Added
