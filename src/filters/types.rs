@@ -465,3 +465,81 @@ pub struct ProjectSourceCounts {
     pub xibs: usize,
     pub resources: usize,
 }
+
+// v0.9.0 types
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct PbxprojResult {
+    pub project_name: String,
+    pub targets: Vec<PbxprojTarget>,
+    pub configurations: Vec<String>,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct PbxprojTarget {
+    pub name: String,
+    pub kind: String,
+    pub bundle_id: String,
+    pub min_os: String,
+    pub signing_team: String,
+    pub build_phases: Vec<String>,
+    pub dependencies: Vec<String>,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct PlutilResult {
+    pub bundle_id: String,
+    pub display_name: String,
+    pub version: String,
+    pub build: String,
+    pub min_os: String,
+    pub device_families: Vec<String>,
+    pub privacy_keys: Vec<String>,
+    pub capabilities: Vec<String>,
+    pub extra: Vec<(String, String)>,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct ProvisioningResult {
+    pub name: String,
+    pub profile_type: String,
+    pub app_id: String,
+    pub team_name: String,
+    pub team_id: String,
+    pub expiry: String,
+    pub expiry_status: String,
+    pub entitlements: Vec<String>,
+    pub device_count: usize,
+    pub certificate_count: usize,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct XccovResult {
+    pub overall_percent: f64,
+    pub target_count: usize,
+    pub files_below_threshold: Vec<XccovFile>,
+    pub threshold: f64,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct XccovFile {
+    pub path: String,
+    pub percent: f64,
+    pub uncovered_lines: usize,
+}
+
+#[derive(Debug, Default, serde::Serialize)]
+pub struct GhRunResult {
+    pub status: String,
+    pub conclusion: String,
+    pub workflow: String,
+    pub jobs: Vec<GhJob>,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct GhJob {
+    pub name: String,
+    pub status: String,
+    pub conclusion: String,
+    pub steps_failed: Vec<String>,
+}

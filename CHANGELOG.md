@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-04-15
+
+### Added
+
+**`sift pbxproj` — Xcode project.pbxproj parser**
+- New `sift pbxproj <project.pbxproj>` subcommand
+- Extracts targets, bundle IDs, minimum OS version, signing team, build phases, and inter-target dependencies
+- Supports compact (targets + identity) and verbose (+ build phases + deps) output
+- 8 unit tests
+
+**`sift plutil` — Info.plist and entitlements parser**
+- New `sift plutil <file.plist>` subcommand
+- Parses XML and JSON plists; shows bundle ID, display name, version, min OS, device families
+- Surfaces privacy permission keys (`NSCameraUsageDescription`, etc.) and capability entitlements
+- Supports `.entitlements` files natively
+- 8 unit tests
+
+**`sift provisioning` — .mobileprovision profile parser**
+- New `sift provisioning <file.mobileprovision>` subcommand
+- Extracts embedded plist from DER/CMS binary without external crypto dependency
+- Shows profile type (Development/Ad Hoc/App Store/Enterprise), app ID, team, expiry status, entitlements, device count
+- Expiry status: `valid` / `expiring soon` / `EXPIRED`
+- 8 unit tests
+
+**`sift xccov` — code coverage summary**
+- New `sift xccov [file]` subcommand (also accepts stdin)
+- Parses `xcrun xccov view --report --json` output
+- Shows overall coverage %, target count, files below threshold (default 80%)
+- `--threshold` flag to customise the passing threshold
+- 8 unit tests
+
+**`sift gh` — GitHub Actions log filtering**
+- New `sift gh` filter for `gh run view` / `gh run list` output
+- Strips timestamps, runner noise, and ANSI escape sequences
+- Compact: shows only failed jobs and their error lines
+- Verbose: shows all jobs with status icons
+- 7 unit tests
+
+**Benchmark expansion**
+- Added `pbxproj`, `plutil`, `xccov`, `gh run` fixtures to `sift benchmark`
+- Total benchmark families: 23 (was 19)
+
 ## [0.8.0] — 2026-04-14
 
 ### Added

@@ -43,6 +43,7 @@ pub enum CommandFamily {
     XcResultTool,
     DocC,
     Periphery,
+    Gh,
     /// Command not recognized — passed through unmodified.
     Unknown,
 }
@@ -73,6 +74,7 @@ impl CommandFamily {
             CommandFamily::XcResultTool => "xcresulttool",
             CommandFamily::DocC => "docc",
             CommandFamily::Periphery => "periphery",
+            CommandFamily::Gh => "gh",
             CommandFamily::Unknown => "unknown",
         }
     }
@@ -118,6 +120,7 @@ pub fn detect(args: &[String]) -> CommandFamily {
         "xcresulttool" => CommandFamily::XcResultTool,
         "docc" => CommandFamily::DocC,
         "periphery" => CommandFamily::Periphery,
+        "gh" => CommandFamily::Gh,
         _ => CommandFamily::Unknown,
     }
 }

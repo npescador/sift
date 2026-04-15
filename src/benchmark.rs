@@ -4,9 +4,9 @@
 //! command output and reports bytes saved and reduction percentage.
 
 use crate::filters::{
-    self, agvtool, codesign, crashlog, curl, fastlane, git_diff, git_log, git_status, grep,
-    periphery, read, swift_build, swift_package, swift_test, swiftformat, swiftlint,
-    xcodebuild_build, xcodebuild_test, xcrun_simctl, Verbosity,
+    self, agvtool, codesign, crashlog, curl, fastlane, gh, git_diff, git_log, git_status, grep,
+    pbxproj, periphery, plutil, read, swift_build, swift_package, swift_test, swiftformat,
+    swiftlint, xccov, xclogparser, xcodebuild_build, xcodebuild_test, xcrun_simctl, Verbosity,
 };
 
 // ---------------------------------------------------------------------------
@@ -488,6 +488,244 @@ src/Models/Order.swift:14: warning: Function 'toDictionary()' is unused
 src/Models/Order.swift:47: warning: Typealias 'OrderID' is unused
 ";
 
+const PBXPROJ: &str = r#"// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		AA00000000000001 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000002 /* AppDelegate.swift */; };
+		AA00000000000003 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA00000000000004 /* ContentView.swift */; };
+		AA00000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = AA00000000000006 /* Assets.xcassets */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXNativeTarget section */
+		AA00000000000010 /* MyApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA00000000000011 /* Build configuration list for PBXNativeTarget "MyApp" */;
+			buildPhases = (
+				AA00000000000012 /* Sources */,
+				AA00000000000013 /* Frameworks */,
+				AA00000000000014 /* Resources */,
+			);
+			dependencies = (
+			);
+			name = MyApp;
+			productType = "com.apple.product-type.application";
+		};
+		AA00000000000020 /* MyAppTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AA00000000000021 /* Build configuration list for PBXNativeTarget "MyAppTests" */;
+			buildPhases = (
+				AA00000000000022 /* Sources */,
+			);
+			dependencies = (
+				AA00000000000023 /* PBXTargetDependency */,
+			);
+			name = MyAppTests;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin XCBuildConfiguration section */
+		AA00000000000030 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = TEAM1234AB;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapp;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		AA00000000000031 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				DEVELOPMENT_TEAM = TEAM1234AB;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.example.myapp;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+	};
+	rootObject = AA00000000000099 /* Project object */;
+}
+"#;
+
+const PLUTIL: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>$(DEVELOPMENT_LANGUAGE)</string>
+	<key>CFBundleDisplayName</key>
+	<string>My App</string>
+	<key>CFBundleExecutable</key>
+	<string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.example.myapp</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleName</key>
+	<string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key>
+	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.1.0</string>
+	<key>CFBundleVersion</key>
+	<string>42</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>MinimumOSVersion</key>
+	<string>17.0</string>
+	<key>NSCameraUsageDescription</key>
+	<string>We need camera access to scan QR codes and capture receipts for your records.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>We need microphone access for voice search and audio notes functionality.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Select photos from your library to attach to expense reports.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>We use your location to show nearby services and auto-fill expense locations.</string>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<false/>
+	</dict>
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UILaunchScreen</key>
+	<dict/>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:example.com</string>
+	</array>
+</dict>
+</plist>
+"#;
+
+const XCCOV: &str = r#"{
+  "coveredLines" : 3420,
+  "executableLines" : 5100,
+  "lineCoverage" : 0.6706,
+  "targets" : [
+    {
+      "coveredLines" : 3420,
+      "executableLines" : 5100,
+      "lineCoverage" : 0.6706,
+      "name" : "MyApp.app",
+      "files" : [
+        {
+          "path" : "/Users/dev/MyApp/Sources/Networking/APIClient.swift",
+          "lineCoverage" : 0.9200,
+          "coveredLines" : 92,
+          "executableLines" : 100,
+          "functions" : []
+        },
+        {
+          "path" : "/Users/dev/MyApp/Sources/Payments/PaymentService.swift",
+          "lineCoverage" : 0.4200,
+          "coveredLines" : 42,
+          "executableLines" : 100,
+          "functions" : []
+        },
+        {
+          "path" : "/Users/dev/MyApp/Sources/Profile/ProfileViewController.swift",
+          "lineCoverage" : 0.6100,
+          "coveredLines" : 61,
+          "executableLines" : 100,
+          "functions" : []
+        },
+        {
+          "path" : "/Users/dev/MyApp/Sources/Analytics/AnalyticsManager.swift",
+          "lineCoverage" : 0.3500,
+          "coveredLines" : 35,
+          "executableLines" : 100,
+          "functions" : []
+        },
+        {
+          "path" : "/Users/dev/MyApp/Sources/Auth/AuthViewModel.swift",
+          "lineCoverage" : 0.8800,
+          "coveredLines" : 88,
+          "executableLines" : 100,
+          "functions" : []
+        }
+      ]
+    }
+  ]
+}"#;
+
+const GH_RUN: &str = r#"✗ main CI · 9876543210
+
+STATUS: completed
+Conclusion: failure
+
+✓ lint (ubuntu-latest)
+✓ build (ubuntu-latest)
+✗ test (ubuntu-latest)
+──────────────────────────────────────────────────────
+LOGS
+
+2024-01-15T10:30:40.001Z ##[group]Run xcodebuild test
+2024-01-15T10:30:40.010Z + xcodebuild test -scheme MyApp -destination 'platform=iOS Simulator,name=iPhone 15'
+2024-01-15T10:30:41.220Z Build settings from command line:
+2024-01-15T10:30:41.221Z     ACTION = test
+2024-01-15T10:30:45.123Z error: use of unresolved identifier 'PaymentService'
+2024-01-15T10:30:45.234Z error: value of type 'String' has no member 'processPayment'
+2024-01-15T10:30:46.456Z error: cannot convert value of type 'Int' to expected argument type 'Decimal'
+2024-01-15T10:30:47.000Z warning: initialization of variable 'amount' was never used
+2024-01-15T10:30:48.999Z Build FAILED with exit code 65
+2024-01-15T10:30:49.001Z ##[endgroup]
+2024-01-15T10:30:49.010Z ##[error]Process completed with exit code 65.
+"#;
+
+const XCLOGPARSER: &str = r#"Build session started at 2024-01-15 10:30:00
+Compiling 83 Swift source files across 3 targets...
+
+/Users/dev/MyApp/Sources/Payments/PaymentService.swift:42:5: error: use of unresolved identifier 'PaymentResult'
+/Users/dev/MyApp/Sources/Payments/PaymentService.swift:67:12: error: value of type 'String' has no member 'processPayment'
+/Users/dev/MyApp/Sources/Payments/CheckoutViewModel.swift:103:8: error: cannot convert value of type 'Int' to expected argument type 'Decimal'
+/Users/dev/MyApp/Sources/Network/APIClient.swift:15:8: warning: initialization of variable 'session' was never used
+/Users/dev/MyApp/Sources/Network/APIClient.swift:88:3: warning: result of call to 'dataTask(with:completionHandler:)' is unused
+/Users/dev/MyApp/Sources/Profile/ProfileViewController.swift:201:10: warning: 'viewDidAppear' is deprecated: use viewIsAppearing instead
+
+Phase: Sources  Duration: 34.78s
+Phase: Frameworks  Duration: 2.91s
+Phase: Resources  Duration: 1.24s
+Phase: Embed Frameworks  Duration: 0.43s
+
+  34.78s  /Users/dev/MyApp/Sources/Payments/PaymentService.swift
+  18.23s  /Users/dev/MyApp/Sources/Network/APIClient.swift
+  12.47s  /Users/dev/MyApp/Sources/Auth/AuthViewModel.swift
+   9.88s  /Users/dev/MyApp/Sources/Profile/ProfileViewController.swift
+   7.32s  /Users/dev/MyApp/Sources/Analytics/AnalyticsManager.swift
+   4.11s  /Users/dev/MyApp/Sources/Models/Order.swift
+
+** BUILD FAILED ** (41.234 seconds)
+"#;
+
 /// One row of benchmark output.
 pub struct BenchmarkResult {
     pub label: String,
@@ -585,6 +823,20 @@ pub fn run_all() -> Vec<BenchmarkResult> {
             "periphery",
             Box::new(|s| periphery::filter(s, Verbosity::Compact)),
         ),
+        (
+            "pbxproj",
+            Box::new(|s| pbxproj::filter(s, Verbosity::Compact)),
+        ),
+        (
+            "plutil",
+            Box::new(|s| plutil::filter(s, Verbosity::Compact)),
+        ),
+        ("xccov", Box::new(|s| xccov::filter(s, Verbosity::Compact))),
+        ("gh run", Box::new(|s| gh::filter(s, Verbosity::Compact))),
+        (
+            "xclogparser",
+            Box::new(|s| xclogparser::filter(s, Verbosity::Compact)),
+        ),
     ];
 
     let inputs: &[&str] = &[
@@ -607,6 +859,11 @@ pub fn run_all() -> Vec<BenchmarkResult> {
         SWIFTFORMAT,
         CRASHLOG,
         PERIPHERY,
+        PBXPROJ,
+        PLUTIL,
+        XCCOV,
+        GH_RUN,
+        XCLOGPARSER,
     ];
 
     fixtures
